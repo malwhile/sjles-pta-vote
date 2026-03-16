@@ -46,7 +46,8 @@ function PollDetailsContent() {
       setError(null);
       // Use public endpoint - no authentication required
       const response = await axios.get(`/api/polls/${pollId}`);
-      setPoll(response.data);
+      // API returns {success: true, data: poll}
+      setPoll(response.data.data);
     } catch (e: any) {
       const errorMsg = e.response?.status === 404 ? "Poll not found" : "Failed to load poll. Please try again.";
       setError(errorMsg);
