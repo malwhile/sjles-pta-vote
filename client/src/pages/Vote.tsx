@@ -34,7 +34,8 @@ export default function Vote() {
       setLoading(true);
       setError(null);
       setIsExpired(false);
-      const response = await axios.post(`/api/admin/view-polls`, { poll_id: pollId });
+      // Use public endpoint - no authentication required
+      const response = await axios.get(`/api/polls/${pollId}`);
       const pollData = response.data;
       setPoll(pollData);
 
