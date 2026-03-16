@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"go-sjles-pta-vote/server/common"
@@ -31,27 +32,34 @@ type PollRequest struct {
 	PollId int64 `json:"poll_id"`
 }
 
+type CreatePollRequest struct {
+	Question      string `json:"question"`
+	DurationHours int    `json:"duration_hours,omitempty"`
+}
+
 func AdminNewPollHandler(resWriter http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodPost:
-		question := request.FormValue("question")
-		if question == "" {
+		// Parse JSON request body
+		var req CreatePollRequest
+		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			common.SendError(resWriter, "Invalid JSON request", http.StatusBadRequest)
+			return
+		}
+
+		if req.Question == "" {
 			common.SendError(resWriter, "Question is required", http.StatusBadRequest)
 			return
 		}
 
+		// Use default duration if not provided
 		durationHours := DEFAULT_POLL_DURATION_HOURS
-		if durationStr := request.FormValue("duration"); durationStr != "" {
-			var err error
-			durationHours, err = strconv.Atoi(durationStr)
-			if err != nil {
-				common.SendError(resWriter, "Invalid duration", http.StatusBadRequest)
-				return
-			}
+		if req.DurationHours > 0 {
+			durationHours = req.DurationHours
 		}
 
 		poll := models.Poll{
-			Question:  question,
+			Question:  req.Question,
 			ExpiresAt: time.Now().Add(time.Duration(durationHours) * time.Hour).Format(common.DATE_FORMAT),
 		}
 
@@ -60,8 +68,7 @@ func AdminNewPollHandler(resWriter http.ResponseWriter, request *http.Request) {
 			return
 		}
 
-		resWriter.WriteHeader(http.StatusOK)
-		json.NewEncoder(resWriter).Encode(map[string]bool{common.SUCCESS: true})
+		common.SendSuccess(resWriter, map[string]bool{"success": true})
 
 	default:
 		common.SendError(resWriter, "Method not allowed", http.StatusMethodNotAllowed)
@@ -427,4 +434,142 @@ func CreatePollIgnore(poll *models.Poll) error {
 	}
 
 	return nil
+}
+
+// GetAllPollsHandler returns all polls as a public endpoint (GET /api/polls)
+func GetAllPollsHandler(resWriter http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		common.SendError(resWriter, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	polls, err := GetAllPolls()
+	if err != nil {
+		log.Printf("ERROR: Failed to get all polls: %v", err)
+		common.SendError(resWriter, "Failed to get polls", http.StatusInternalServerError)
+		return
+	}
+
+	common.SendSuccess(resWriter, polls)
+}
+
+// EditPollHandler updates an existing poll (PATCH /api/admin/polls/{id})
+func EditPollHandler(resWriter http.ResponseWriter, request *http.Request) {
+	if request.Method != "PATCH" && request.Method != http.MethodPut {
+		common.SendError(resWriter, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract poll ID from URL path
+	parts := strings.Split(strings.TrimPrefix(request.URL.Path, "/api/admin/polls/"), "/")
+	idStr := parts[0]
+	if idStr == "" {
+		common.SendError(resWriter, "Poll ID required", http.StatusBadRequest)
+		return
+	}
+
+	pollID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.SendError(resWriter, "Invalid poll ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse JSON request body
+	var req CreatePollRequest
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		common.SendError(resWriter, "Invalid JSON request", http.StatusBadRequest)
+		return
+	}
+
+	if req.Question == "" {
+		common.SendError(resWriter, "Question is required", http.StatusBadRequest)
+		return
+	}
+
+	db_conn, err := db.GetDB()
+	if err != nil {
+		log.Printf("ERROR: Failed to get database connection: %v", err)
+		common.SendError(resWriter, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Update poll question and/or expiration
+	query := "UPDATE polls SET question = ?"
+	args := []interface{}{req.Question}
+
+	if req.DurationHours > 0 {
+		query += ", expires_at = ?"
+		args = append(args, time.Now().Add(time.Duration(req.DurationHours)*time.Hour).Format(common.DATE_FORMAT))
+	}
+
+	query += " WHERE id = ?"
+	args = append(args, pollID)
+
+	_, err = db_conn.Exec(query, args...)
+	if err != nil {
+		log.Printf("ERROR: Failed to update poll: %v", err)
+		common.SendError(resWriter, "Failed to update poll", http.StatusInternalServerError)
+		return
+	}
+
+	common.SendSuccess(resWriter, map[string]interface{}{"message": "Poll updated successfully"})
+}
+
+// DeletePollHandler deletes a poll (DELETE /api/admin/polls/{id})
+func DeletePollHandler(resWriter http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodDelete {
+		common.SendError(resWriter, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract poll ID from URL path
+	parts := strings.Split(strings.TrimPrefix(request.URL.Path, "/api/admin/polls/"), "/")
+	idStr := parts[0]
+	if idStr == "" {
+		common.SendError(resWriter, "Poll ID required", http.StatusBadRequest)
+		return
+	}
+
+	pollID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.SendError(resWriter, "Invalid poll ID", http.StatusBadRequest)
+		return
+	}
+
+	db_conn, err := db.GetDB()
+	if err != nil {
+		log.Printf("ERROR: Failed to get database connection: %v", err)
+		common.SendError(resWriter, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete voters first (due to foreign key constraint)
+	_, err = db_conn.Exec("DELETE FROM voters WHERE poll_id = ?", pollID)
+	if err != nil {
+		log.Printf("ERROR: Failed to delete voters: %v", err)
+		common.SendError(resWriter, "Failed to delete poll", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete the poll
+	result, err := db_conn.Exec("DELETE FROM polls WHERE id = ?", pollID)
+	if err != nil {
+		log.Printf("ERROR: Failed to delete poll: %v", err)
+		common.SendError(resWriter, "Failed to delete poll", http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("ERROR: Failed to get rows affected: %v", err)
+		common.SendError(resWriter, "Failed to verify deletion", http.StatusInternalServerError)
+		return
+	}
+
+	if rowsAffected == 0 {
+		common.SendError(resWriter, "Poll not found", http.StatusNotFound)
+		return
+	}
+
+	common.SendSuccess(resWriter, map[string]interface{}{"message": "Poll deleted successfully"})
 }
