@@ -12,6 +12,8 @@ import {
   TableSortLabel,
   Chip,
   Paper,
+  Alert,
+  Box,
 } from '@mui/material';
 import PageLayout from '../components/PageLayout';
 import { Poll } from '../types';
@@ -23,6 +25,7 @@ export default function PollList() {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPolls();
@@ -30,10 +33,15 @@ export default function PollList() {
 
   const fetchPolls = async () => {
     try {
+      setError(null);
       const response = await axios.get('/api/admin/view-polls');
       setPolls(response.data);
-    } catch (error) {
-      console.error('Error fetching polls:', error);
+    } catch (error: any) {
+      const errorMsg = "Failed to load polls. Please try again.";
+      setError(errorMsg);
+      if (process.env.NODE_ENV === "development") {
+        console.error('Error fetching polls:', error);
+      }
     }
   };
 
@@ -63,6 +71,16 @@ export default function PollList() {
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
         Poll List
       </Typography>
+      {error && (
+        <Box sx={{ mb: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Box>
+      )}
+      {polls.length === 0 && !error && (
+        <Box sx={{ mb: 3 }}>
+          <Alert severity="info">No polls available</Alert>
+        </Box>
+      )}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
