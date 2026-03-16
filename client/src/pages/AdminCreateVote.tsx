@@ -29,14 +29,16 @@ export default function AdminCreateVote() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const formData = new FormData();
-    formData.append("question", question);
-    formData.append("duration", expiresInHours);
-
     try {
       const resp = await fetch("/api/admin/new-poll", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question,
+          duration_hours: parseInt(expiresInHours, 10),
+        }),
       });
 
       const data = await resp.json();

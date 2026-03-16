@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/db"
 	"go-sjles-pta-vote/server/models"
@@ -42,48 +40,14 @@ func voteHandler(resWriter http.ResponseWriter, request *http.Request) {
 	resWriter.WriteHeader(http.StatusOK)
 }
 
-func voteIDHandler(resWriter http.ResponseWriter, request *http.Request) {
-	vars := mux.Vars(request)
-	idStr := vars["id"]
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.SendError(resWriter, "Invalid poll ID", http.StatusBadRequest)
-		return
-	}
-
-	vote := models.Vote{
-		PollId: id,
-		Email:  "example@example.com", // Replace with actual email retrieval logic
-		Vote:   true,                  // Replace with actual vote retrieval logic
-	}
-
-	err = services.SetVote(&vote)
-	if err != nil {
-		common.SendError(resWriter, "Failed to set vote", http.StatusInternalServerError)
-		return
-	}
-
-	resWriter.WriteHeader(http.StatusOK)
-}
-
-func statsHandler(resWriter http.ResponseWriter, request *http.Request) {
+func apiPollsMethodHandler(resWriter http.ResponseWriter, request *http.Request) {
 	switch request.Method {
-	case http.MethodGet:
-		filePath := "./server/templates/stats.html"
-		http.ServeFile(resWriter, request, filePath)
-	case http.MethodPost:
-		vars := mux.Vars(request)
-		id := vars["id"]
-
-		poll, err := services.GetPollByQuestion(id)
-		if err != nil {
-			common.SendError(resWriter, "Failed to get poll", http.StatusInternalServerError)
-			return
-		}
-
-		json.NewEncoder(resWriter).Encode(poll)
+	case "PATCH", "PUT":
+		services.EditPollHandler(resWriter, request)
+	case http.MethodDelete:
+		services.DeletePollHandler(resWriter, request)
 	default:
-		resWriter.WriteHeader(http.StatusMethodNotAllowed)
+		common.SendError(resWriter, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -220,12 +184,13 @@ func main() {
 	}
 
 	http.HandleFunc("/api/vote", voteHandler)
-	http.HandleFunc("/api/vote/{id}", voteIDHandler)
-	http.HandleFunc("/api/polls/", pollsIDHandler)
-	http.HandleFunc("/api/stats", statsHandler)
+	http.HandleFunc("/api/polls", services.GetAllPollsHandler)           // GET - list all polls
+	http.HandleFunc("/api/polls/", pollsIDHandler)                        // GET - get poll by ID
 	http.HandleFunc("/api/admin/new-poll", services.AdminNewPollHandler)
 	http.HandleFunc("/api/admin/view-polls", services.AdminViewPollHandler)
 	http.HandleFunc("/api/admin/login", adminLoginHandler)
+	http.HandleFunc("/api/admin/logout", services.LogoutHandler)          // POST - logout
+	http.HandleFunc("/api/admin/polls/", apiPollsMethodHandler)           // PATCH/DELETE - edit/delete polls
 	http.HandleFunc("/api/admin/members", services.AdminMembersHandler)
 	http.HandleFunc("/api/admin/members/view", services.AdminMembersView)
 
