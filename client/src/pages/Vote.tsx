@@ -22,7 +22,7 @@ export default function Vote() {
   const [selectedVote, setSelectedVote] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [voteSubmitted, setVoteSubmitted] = useState(false);
 
   useEffect(() => {
     if (id) fetchPollDetails(parseInt(id, 10));
@@ -58,10 +58,7 @@ export default function Vote() {
       });
 
       if (response.status === 200) {
-        setSuccessMessage("Vote submitted successfully!");
-        setTimeout(() => {
-          navigate(`/poll-details/${poll.id}`);
-        }, 500);
+        setVoteSubmitted(true);
       }
     } catch (e: any) {
       console.error("Error submitting vote:", e);
@@ -100,64 +97,88 @@ export default function Vote() {
           {poll.question}
         </Typography>
 
-        <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-          Your vote is anonymous — your email is only used to prevent duplicate votes.
-        </Typography>
+        {!voteSubmitted ? (
+          <>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+              Your vote is anonymous — your email is only used to prevent duplicate votes.
+            </Typography>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <Box sx={{ mb: 3 }}>
+              <TextField
+                fullWidth
+                type="email"
+                label="Email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting}
+                margin="normal"
+              />
+            </Box>
+
+            <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+              <Button
+                fullWidth
+                variant={selectedVote === true ? "contained" : "outlined"}
+                color="success"
+                onClick={() => setSelectedVote(true)}
+                disabled={submitting}
+              >
+                Yes
+              </Button>
+              <Button
+                fullWidth
+                variant={selectedVote === false ? "contained" : "outlined"}
+                color="error"
+                onClick={() => setSelectedVote(false)}
+                disabled={submitting}
+              >
+                No
+              </Button>
+            </Box>
+
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleSubmitVote}
+              disabled={submitting || !email || selectedVote === null}
+            >
+              {submitting ? "Submitting..." : "Submit Vote"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Alert severity="success" sx={{ mb: 3 }}>
+              Thank you! Your vote has been recorded.
+            </Alert>
+
+            <Box sx={{ mb: 3, textAlign: "center" }}>
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                You voted: <strong>{selectedVote ? "Yes" : "No"}</strong>
+              </Typography>
+            </Box>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => navigate(`/poll-details/${poll.id}`)}
+            >
+              View Poll Results
+            </Button>
+          </>
+        )}
+
+        {error && voteSubmitted && (
+          <Alert severity="error" sx={{ mt: 2 }}>
             {error}
           </Alert>
         )}
-
-        {successMessage && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {successMessage}
-          </Alert>
-        )}
-
-        <Box sx={{ mb: 3 }}>
-          <TextField
-            fullWidth
-            type="email"
-            label="Email"
-            placeholder="your@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={submitting}
-            margin="normal"
-          />
-        </Box>
-
-        <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-          <Button
-            fullWidth
-            variant={selectedVote === true ? "contained" : "outlined"}
-            color="success"
-            onClick={() => setSelectedVote(true)}
-            disabled={submitting}
-          >
-            Yes
-          </Button>
-          <Button
-            fullWidth
-            variant={selectedVote === false ? "contained" : "outlined"}
-            color="error"
-            onClick={() => setSelectedVote(false)}
-            disabled={submitting}
-          >
-            No
-          </Button>
-        </Box>
-
-        <Button
-          fullWidth
-          variant="contained"
-          onClick={handleSubmitVote}
-          disabled={submitting || !email || selectedVote === null}
-        >
-          {submitting ? "Submitting..." : "Submit Vote"}
-        </Button>
       </Card>
     </PageLayout>
   );
