@@ -121,19 +121,41 @@ func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {
 		return 0, errors.Wrap(err, "failed to read CSV from bytes")
 	}
 
+	if len(records) == 0 {
+		return 0, errors.New("CSV file is empty")
+	}
+
 	var members []Member
+	skippedCount := 0
 
 	for i, record := range records {
 		if i == 0 {
 			continue // Skip the first line (column headers)
 		}
+
+		// Validate minimum required fields
 		if len(record) < 4 {
+			skippedCount++
+			logging.Warnf("Row %d: skipped due to insufficient fields (required 4, got %d)", i+1, len(record))
 			continue
 		}
 
 		firstName := strings.TrimSpace(record[1])
 		lastName := strings.TrimSpace(record[2])
 		email := strings.TrimSpace(record[3])
+
+		// Validate required fields are not empty
+		if firstName == "" && lastName == "" {
+			skippedCount++
+			logging.Warnf("Row %d: skipped due to empty name fields", i+1)
+			continue
+		}
+
+		if email == "" {
+			skippedCount++
+			logging.Warnf("Row %d: skipped due to empty email field", i+1)
+			continue
+		}
 
 		members = append(members, Member{
 			Name:  fmt.Sprintf("%s %s", firstName, lastName),
