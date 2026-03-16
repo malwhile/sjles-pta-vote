@@ -55,7 +55,9 @@ export default function PollDetails() {
     );
   }
 
-  const passed = poll.member_yes > poll.member_no;
+  const totalMemberVotes = poll.member_yes + poll.member_no;
+  const hasVotes = totalMemberVotes > 0;
+  const passed = hasVotes && poll.member_yes > poll.member_no;
 
   const memberData = [
     { name: "Yes", value: poll.member_yes },
@@ -77,8 +79,8 @@ export default function PollDetails() {
             {poll.question}
           </Typography>
           <Chip
-            label={passed ? "Pass" : "Fail"}
-            color={passed ? "success" : "error"}
+            label={!hasVotes ? "No votes yet" : (passed ? "Pass" : "Fail")}
+            color={!hasVotes ? "default" : (passed ? "success" : "error")}
             size="medium"
           />
         </Box>

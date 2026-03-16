@@ -31,7 +31,7 @@ export default function AdminCreateVote() {
 
     const formData = new FormData();
     formData.append("question", question);
-    formData.append("expiresInHours", expiresInHours);
+    formData.append("duration", expiresInHours);
 
     try {
       const resp = await fetch("/api/admin/new-poll", {
