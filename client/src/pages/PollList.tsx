@@ -92,7 +92,9 @@ export default function PollList() {
           </TableHead>
           <TableBody>
             {sortedPolls.map((poll) => {
-              const passed = poll.member_yes > poll.member_no;
+              const totalMemberVotes = poll.member_yes + poll.member_no;
+              const hasVotes = totalMemberVotes > 0;
+              const passed = hasVotes && poll.member_yes > poll.member_no;
               return (
                 <TableRow key={poll.id} hover>
                   <TableCell>
@@ -103,8 +105,8 @@ export default function PollList() {
                   <TableCell>{new Date(poll.created_at).toLocaleString()}</TableCell>
                   <TableCell align="center">
                     <Chip
-                      label={passed ? 'Pass' : 'Fail'}
-                      color={passed ? 'success' : 'error'}
+                      label={!hasVotes ? 'No votes yet' : (passed ? 'Pass' : 'Fail')}
+                      color={!hasVotes ? 'default' : (passed ? 'success' : 'error')}
                       size="small"
                     />
                   </TableCell>

@@ -7,8 +7,10 @@ import {
   Card,
   Chip,
   CircularProgress,
+  Link,
 } from "@mui/material";
 import { PieChart, Pie, Tooltip, Legend, Cell, ResponsiveContainer } from "recharts";
+import QRCode from "react-qr-code";
 import PageLayout from "../components/PageLayout";
 import { Poll } from "../types";
 
@@ -53,7 +55,9 @@ export default function PollDetails() {
     );
   }
 
-  const passed = poll.member_yes > poll.member_no;
+  const totalMemberVotes = poll.member_yes + poll.member_no;
+  const hasVotes = totalMemberVotes > 0;
+  const passed = hasVotes && poll.member_yes > poll.member_no;
 
   const memberData = [
     { name: "Yes", value: poll.member_yes },
@@ -65,6 +69,8 @@ export default function PollDetails() {
     { name: "No", value: poll.non_member_no },
   ];
 
+  const voteUrl = `${window.location.origin}/vote/${poll.id}`;
+
   return (
     <PageLayout>
       <Box sx={{ mb: 3 }}>
@@ -73,8 +79,8 @@ export default function PollDetails() {
             {poll.question}
           </Typography>
           <Chip
-            label={passed ? "Pass" : "Fail"}
-            color={passed ? "success" : "error"}
+            label={!hasVotes ? "No votes yet" : (passed ? "Pass" : "Fail")}
+            color={!hasVotes ? "default" : (passed ? "success" : "error")}
             size="medium"
           />
         </Box>
@@ -82,6 +88,16 @@ export default function PollDetails() {
           Created: {new Date(poll.created_at).toLocaleString()}
         </Typography>
       </Box>
+
+      <Card sx={{ p: 3, mb: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Scan to Vote
+        </Typography>
+        <QRCode value={voteUrl} size={200} />
+        <Link href={voteUrl} target="_blank" rel="noopener noreferrer" sx={{ fontSize: 12, wordBreak: "break-all", textAlign: "center" }}>
+          {voteUrl}
+        </Link>
+      </Card>
 
       <Box sx={{ display: { xs: 'block', md: 'flex' }, gap: 3 }}>
         <Card sx={{ p: 2, flex: 1, minWidth: { md: 0 } }}>
