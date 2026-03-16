@@ -43,7 +43,8 @@ export default function PollList() {
       setLoading(true);
       // Use public endpoint - no authentication required
       const response = await axios.get('/api/polls');
-      setPolls(response.data || []);
+      // API returns {success: true, data: [polls]}
+      setPolls(response.data.data || []);
     } catch (error: any) {
       const errorMsg = "Failed to load polls. Please try again.";
       setError(errorMsg);

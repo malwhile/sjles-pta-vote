@@ -85,8 +85,7 @@ func pollsIDHandler(resWriter http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	resWriter.WriteHeader(http.StatusOK)
-	json.NewEncoder(resWriter).Encode(poll)
+	common.SendSuccess(resWriter, poll)
 }
 
 func adminLoginHandler(resWriter http.ResponseWriter, request *http.Request) {
