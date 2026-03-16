@@ -15,9 +15,22 @@ import QRCode from "react-qr-code";
 import PageLayout from "../components/PageLayout";
 import { Poll } from "../types";
 
+// Move COLORS outside component to prevent recreation on every render
 const COLORS = ["#0088FE", "#FEB43C"];
 
-export default function PollDetails() {
+// Memoize the chart legend component to prevent unnecessary re-renders
+const ChartLegend = React.memo(({ data, colors }: { data: any[], colors: string[] }) => (
+  <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 2 }}>
+    {data.map((item, i) => (
+      <Box key={item.name} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ width: 16, height: 16, backgroundColor: colors[i % colors.length] }} />
+        <Typography variant="body2">{item.name}: {item.value}</Typography>
+      </Box>
+    ))}
+  </Box>
+));
+
+function PollDetailsContent() {
   const { id } = useParams<{ id: string }>();
   const [poll, setPoll] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,16 +154,7 @@ export default function PollDetails() {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-          <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ width: 16, height: 16, backgroundColor: COLORS[0] }} />
-              <Typography variant="body2">Yes: {poll.member_yes}</Typography>
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ width: 16, height: 16, backgroundColor: COLORS[1] }} />
-              <Typography variant="body2">No: {poll.member_no}</Typography>
-            </Box>
-          </Box>
+          <ChartLegend data={memberData} colors={COLORS} />
         </Card>
 
         <Card sx={{ p: 2, flex: 1, minWidth: { md: 0 }, mt: { xs: 3, md: 0 } }}>
@@ -175,18 +179,12 @@ export default function PollDetails() {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-          <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ width: 16, height: 16, backgroundColor: COLORS[0] }} />
-              <Typography variant="body2">Yes: {poll.non_member_yes}</Typography>
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ width: 16, height: 16, backgroundColor: COLORS[1] }} />
-              <Typography variant="body2">No: {poll.non_member_no}</Typography>
-            </Box>
-          </Box>
+          <ChartLegend data={nonMemberData} colors={COLORS} />
         </Card>
       </Box>
     </PageLayout>
   );
 }
+
+// Memoize component to prevent unnecessary re-renders when parent updates
+export default React.memo(PollDetailsContent);
