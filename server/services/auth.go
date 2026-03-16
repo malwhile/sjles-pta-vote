@@ -4,12 +4,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
+
+	"go-sjles-pta-vote/server/common"
 )
 
 type LoginRequest struct {
@@ -124,4 +127,26 @@ func VerifyAuthToken(tokenString string) (string, error) {
 	}
 
 	return username, nil
+}
+
+// LogoutHandler handles admin logout (POST /api/admin/logout)
+// Note: With JWT tokens, logout is primarily a client-side operation.
+// This endpoint confirms the logout action on the server side.
+func LogoutHandler(resWriter http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		common.SendError(resWriter, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get the token from the Authorization header for audit logging
+	authHeader := request.Header.Get("Authorization")
+	if authHeader != "" {
+		log.Printf("INFO: User logged out successfully")
+	}
+
+	// Send success response
+	// The client should remove the token from localStorage
+	common.SendSuccess(resWriter, map[string]interface{}{
+		"message": "Logged out successfully. Please clear your authentication token.",
+	})
 }
