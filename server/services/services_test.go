@@ -105,7 +105,6 @@ func PreLoadDB() error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
 
 	// Insert members
 	for i := range new_members {
