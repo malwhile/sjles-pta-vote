@@ -36,12 +36,25 @@ export default function AdminMembersView() {
     e.preventDefault();
 
     try {
-      const resp = await fetch(`/api/admin/members/view?year=${year}`);
+      const token = localStorage.getItem('adminToken');
+      const headers: HeadersInit = {};
+      if (token) {
+        (headers as any)['Authorization'] = `Bearer ${token}`;
+      }
+
+      const resp = await fetch(`/api/admin/members/view?year=${year}`, {
+        headers: headers,
+      });
       const data = await resp.json();
 
       if (data.success) {
-        setMembers(data.members);
+        setMembers(data.data || data.members);
         setStatus("");
+      } else if (resp.status === 401) {
+        setStatus("Your session has expired. Please log in again.");
+        setStatusSeverity('error');
+        localStorage.removeItem('adminToken');
+        setTimeout(() => navigate('/admin-login'), 2000);
       } else {
         setStatus(data.error || "Server error");
         setStatusSeverity('error');
