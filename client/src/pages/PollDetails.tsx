@@ -10,7 +10,7 @@ import {
   Link,
   Alert,
 } from "@mui/material";
-import { PieChart, Pie, Tooltip, Legend, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Tooltip, Cell, ResponsiveContainer } from "recharts";
 import QRCode from "react-qr-code";
 import PageLayout from "../components/PageLayout";
 import { Poll } from "../types";
