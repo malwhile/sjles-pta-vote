@@ -100,15 +100,17 @@ func AdminMembersView(resWriter http.ResponseWriter, request *http.Request) {
 
 	members, err := GetMembersByYear(year)
 	if err != nil {
+		logging.Errorf("failed to get members for year %d: %v", year, err)
 		common.SendError(resWriter, "Failed to get members", http.StatusInternalServerError)
 		return
 	}
 
-	resWriter.WriteHeader(http.StatusOK)
-	json.NewEncoder(resWriter).Encode(map[string]interface{}{
-		common.SUCCESS: true,
-		"members": members,
-	})
+	// Return empty array if no members found
+	if members == nil {
+		members = []Member{}
+	}
+
+	common.SendSuccess(resWriter, members)
 }
 
 func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {

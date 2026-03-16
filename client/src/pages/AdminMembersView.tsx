@@ -48,7 +48,7 @@ export default function AdminMembersView() {
       const data = await resp.json();
 
       if (data.success) {
-        setMembers(data.data || data.members);
+        setMembers(Array.isArray(data.data) ? data.data : []);
         setStatus("");
       } else if (resp.status === 401) {
         setStatus("Your session has expired. Please log in again.");
