@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, FormEvent } from "react";
+import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { useNavigate } from 'react-router';
 import {
   Card,
@@ -25,14 +25,12 @@ export default function AdminMembersView() {
   const [statusSeverity, setStatusSeverity] = useState<'success' | 'error'>('success');
   const navigate = useNavigate();
 
-  const isAdmin = () => {
-    return localStorage.getItem('adminToken') !== null;
-  };
-
-  if (!isAdmin()) {
-    navigate('/admin-login');
-    return <div>Redirecting...</div>;
-  }
+  useEffect(() => {
+    const isAdmin = localStorage.getItem('adminToken') !== null;
+    if (!isAdmin) {
+      navigate('/admin-login');
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
