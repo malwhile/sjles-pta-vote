@@ -21,6 +21,17 @@ type Member struct {
 	Email string
 }
 
+type RowError struct {
+	Row    int    `json:"row"`
+	Email  string `json:"email"`
+	Reason string `json:"reason"`
+}
+
+type ParseResult struct {
+	Count  int        `json:"count"`
+	Errors []RowError `json:"errors"`
+}
+
 const BATCH_SIZE = 100
 const CVS_FILE_FIELD = "members.csv"
 
@@ -63,7 +74,7 @@ func AdminMembersHandler(resWriter http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	memberCount, err := ParseMembersFromBytes(year, fileBytes)
+	parseResult, err := ParseMembersFromBytes(year, fileBytes)
 	if err != nil {
 		logging.Errorf("failed to parse members from CSV: %v", err)
 		common.SendError(resWriter, "Failed to parse members from CSV", http.StatusBadRequest)
@@ -79,10 +90,15 @@ func AdminMembersHandler(resWriter http.ResponseWriter, request *http.Request) {
 		}
 	}
 
-	logging.Audit("UPLOAD_MEMBERS", adminUser, fmt.Sprintf("year=%d count=%d", year, memberCount), true)
+	logging.Audit("UPLOAD_MEMBERS", adminUser, fmt.Sprintf("year=%d count=%d errors=%d", year, parseResult.Count, len(parseResult.Errors)), true)
 
 	resWriter.WriteHeader(http.StatusOK)
-	json.NewEncoder(resWriter).Encode(map[string]interface{}{common.SUCCESS: true, "count": memberCount})
+	json.NewEncoder(resWriter).Encode(map[string]interface{}{
+		common.SUCCESS: true,
+		"count":        parseResult.Count,
+		"errors":       parseResult.Errors,
+		"message":      fmt.Sprintf("Imported %d members", parseResult.Count),
+	})
 }
 
 func AdminMembersView(resWriter http.ResponseWriter, request *http.Request) {
@@ -113,20 +129,20 @@ func AdminMembersView(resWriter http.ResponseWriter, request *http.Request) {
 	common.SendSuccess(resWriter, members)
 }
 
-func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {
+func ParseMembersFromBytes(year int, fileBytes []byte) (*ParseResult, error) {
 	reader := csv.NewReader(strings.NewReader(string(fileBytes)))
 	reader.FieldsPerRecord = -1 // Allow variable number of fields per record
 	records, err := reader.ReadAll()
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to read CSV from bytes")
+		return nil, errors.Wrap(err, "failed to read CSV from bytes")
 	}
 
 	if len(records) == 0 {
-		return 0, errors.New("CSV file is empty")
+		return nil, errors.New("CSV file is empty")
 	}
 
 	var members []Member
-	skippedCount := 0
+	var parseErrors []RowError
 
 	for i, record := range records {
 		if i == 0 {
@@ -135,8 +151,11 @@ func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {
 
 		// Validate minimum required fields
 		if len(record) < 4 {
-			skippedCount++
-			logging.Warnf("Row %d: skipped due to insufficient fields (required 4, got %d)", i+1, len(record))
+			parseErrors = append(parseErrors, RowError{
+				Row:    i + 1,
+				Email:  "",
+				Reason: fmt.Sprintf("Insufficient fields (required 4, got %d)", len(record)),
+			})
 			continue
 		}
 
@@ -146,14 +165,20 @@ func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {
 
 		// Validate required fields are not empty
 		if firstName == "" && lastName == "" {
-			skippedCount++
-			logging.Warnf("Row %d: skipped due to empty name fields", i+1)
+			parseErrors = append(parseErrors, RowError{
+				Row:    i + 1,
+				Email:  email,
+				Reason: "Empty name fields (first name and last name both empty)",
+			})
 			continue
 		}
 
 		if email == "" {
-			skippedCount++
-			logging.Warnf("Row %d: skipped due to empty email field", i+1)
+			parseErrors = append(parseErrors, RowError{
+				Row:    i + 1,
+				Email:  "",
+				Reason: "Empty email field",
+			})
 			continue
 		}
 
@@ -180,9 +205,13 @@ func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {
 
 	err = saveMember(year, members)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return len(members), nil
+
+	return &ParseResult{
+		Count:  len(members),
+		Errors: parseErrors,
+	}, nil
 }
 
 func saveMember(year int, members []Member) error {
