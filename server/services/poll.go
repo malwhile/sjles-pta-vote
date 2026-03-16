@@ -177,161 +177,29 @@ func AdminViewPollHandler(resWriter http.ResponseWriter, request *http.Request) 
 }
 
 func GetAllPolls() ([]models.Poll, error) {
-	db_conn, err := db.Connect()
+	// Use optimized utility function that fetches polls with voters in single query
+	pollPtrs, err := QueryAllPolls()
 	if err != nil {
-		log.Printf("%s", err.Error())
 		return nil, err
 	}
-	defer db.Close()
 
-	get_polls_stmt, err := db_conn.Prepare(`
-		SELECT 
-			id, question, 
-			member_yes_votes, member_no_votes,
-			non_member_yes_votes, non_member_no_votes,
-			created_at, updated_at,
-			expires_at
-		FROM polls 
-	`)
-	if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-	defer get_polls_stmt.Close()
-
-	rows, err := get_polls_stmt.Query()
-	if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-	defer rows.Close()
-
-	var polls = []models.Poll{}
-	for rows.Next() {
-		new_poll := models.Poll{}
-		err = rows.Scan(
-			&new_poll.ID, &new_poll.Question,
-			&new_poll.MemberYes, &new_poll.MemberNo,
-			&new_poll.NonMemberYes, &new_poll.NonMemberNo,
-			&new_poll.CreatedAt, &new_poll.UpdatedAt,
-			&new_poll.ExpiresAt,
-		)
-		if err != nil {
-			log.Printf("%s", err.Error())
-			return nil, err
-		}
-
-		polls = append(polls, new_poll)
+	// Convert pointers to values for backward compatibility
+	polls := make([]models.Poll, 0, len(pollPtrs))
+	for _, p := range pollPtrs {
+		polls = append(polls, *p)
 	}
 
 	return polls, nil
 }
 
 func GetPollByQuestion(question string) (*models.Poll, error) {
-	db_conn, err := db.Connect()
-	if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-	defer db.Close()
-
-	get_poll_stmt, err := db_conn.Prepare(`
-		SELECT 
-			id, question, 
-			member_yes_votes, member_no_votes,
-			non_member_yes_votes, non_member_no_votes,
-			created_at, updated_at,
-			expires_at
-		FROM polls 
-		WHERE question == $1
-	`)
-	if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-	defer get_poll_stmt.Close()
-
-	new_poll := models.Poll{}
-	err = get_poll_stmt.QueryRow(question).Scan(
-		&new_poll.ID, &new_poll.Question,
-		&new_poll.MemberYes, &new_poll.MemberNo,
-		&new_poll.NonMemberYes, &new_poll.NonMemberNo,
-		&new_poll.CreatedAt, &new_poll.UpdatedAt,
-		&new_poll.ExpiresAt,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, ErrPollNotFound
-	} else if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-
-	get_voters_stmt, err := db_conn.Prepare(`
-		SELECT voter_email 
-		FROM voters
-		WHERE poll_id == $1
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer get_voters_stmt.Close()
-
-	rows, err := get_voters_stmt.Query(new_poll.ID)
-	for rows.Next() {
-		var voter_email string
-		err = rows.Scan(&voter_email)
-		if err != nil {
-			log.Printf("%s", err.Error())
-			return nil, err
-		}
-		new_poll.WhoVoted = append(new_poll.WhoVoted, voter_email)
-	}
-
-	return &new_poll, nil
+	// Use optimized utility function that fetches poll with voters in single query
+	return QueryPollByQuestion(question)
 }
 
 func GetPollById(id int64) (*models.Poll, error) {
-	db_conn, err := db.Connect()
-	if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-	defer db.Close()
-
-	get_poll_stmt, err := db_conn.Prepare(`
-		SELECT 
-			id, question, 
-			member_yes_votes, member_no_votes,
-			non_member_yes_votes, non_member_no_votes,
-			created_at, updated_at,
-			expires_at
-		FROM polls 
-		WHERE id == $1
-	`)
-	if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-	defer get_poll_stmt.Close()
-
-	new_poll := models.Poll{}
-	err = get_poll_stmt.QueryRow(id).Scan(
-		&new_poll.ID, &new_poll.Question,
-		&new_poll.MemberYes, &new_poll.MemberNo,
-		&new_poll.NonMemberYes, &new_poll.NonMemberNo,
-		&new_poll.CreatedAt, &new_poll.UpdatedAt,
-		&new_poll.ExpiresAt,
-	)
-
-	if err == sql.ErrNoRows {
-		return nil, ErrPollNotFound
-	} else if err != nil {
-		log.Printf("%s", err.Error())
-		return nil, err
-	}
-
-	return &new_poll, nil
+	// Use optimized utility function that fetches poll with voters in single query
+	return QueryPollByID(id)
 }
 
 func GetAndCreatePollByQuestion(question string) (*models.Poll, error) {
