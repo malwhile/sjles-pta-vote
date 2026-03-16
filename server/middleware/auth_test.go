@@ -10,11 +10,6 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// Set up test environment before any tests run
-	os.Setenv("JWT_SECRET", "test-secret-key-12345")
-	os.Setenv("ADMIN_USER", "testadmin")
-	os.Setenv("ADMIN_PASS", "testpass")
-
 	// Run tests
 	code := m.Run()
 	os.Exit(code)
