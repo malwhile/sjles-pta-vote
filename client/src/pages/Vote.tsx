@@ -23,6 +23,7 @@ export default function Vote() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [voteSubmitted, setVoteSubmitted] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
     if (id) fetchPollDetails(parseInt(id, 10));
@@ -32,8 +33,18 @@ export default function Vote() {
     try {
       setLoading(true);
       setError(null);
+      setIsExpired(false);
       const response = await axios.post(`/api/admin/view-polls`, { poll_id: pollId });
-      setPoll(response.data);
+      const pollData = response.data;
+      setPoll(pollData);
+
+      // Check if poll has expired
+      if (pollData.expires_at) {
+        const expiryTime = new Date(pollData.expires_at);
+        if (new Date() > expiryTime) {
+          setIsExpired(true);
+        }
+      }
     } catch (e: any) {
       const errorMsg = e.response?.status === 404 ? "Poll not found" : "Failed to load poll";
       setError(errorMsg);
@@ -70,6 +81,9 @@ export default function Vote() {
       }
       if (e.response?.status === 409) {
         setError("You have already voted on this poll.");
+      } else if (e.response?.status === 403) {
+        setError("This poll has expired and is no longer accepting votes.");
+        setIsExpired(true);
       } else if (e.response?.status === 400) {
         setError("Invalid vote submission. Please check your input.");
       } else if (e.response?.status === 404) {
@@ -113,6 +127,12 @@ export default function Vote() {
               Your vote is anonymous — your email is only used to prevent duplicate votes.
             </Typography>
 
+            {isExpired && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                This poll has expired and is no longer accepting votes.
+              </Alert>
+            )}
+
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}
@@ -138,7 +158,7 @@ export default function Vote() {
                 variant={selectedVote === true ? "contained" : "outlined"}
                 color="success"
                 onClick={() => setSelectedVote(true)}
-                disabled={submitting}
+                disabled={submitting || isExpired}
               >
                 Yes
               </Button>
@@ -147,7 +167,7 @@ export default function Vote() {
                 variant={selectedVote === false ? "contained" : "outlined"}
                 color="error"
                 onClick={() => setSelectedVote(false)}
-                disabled={submitting}
+                disabled={submitting || isExpired}
               >
                 No
               </Button>
@@ -157,7 +177,7 @@ export default function Vote() {
               fullWidth
               variant="contained"
               onClick={handleSubmitVote}
-              disabled={submitting || !email || selectedVote === null}
+              disabled={submitting || !email || selectedVote === null || isExpired}
             >
               {submitting ? "Submitting..." : "Submit Vote"}
             </Button>
