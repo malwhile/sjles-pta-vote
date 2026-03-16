@@ -36,6 +36,12 @@ CREATE TABLE IF NOT EXISTS members (
     school_year UNSIGNED INT NOT NULL,
     PRIMARY KEY (email, school_year)
 );
+
+-- Performance indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_voters_poll_id ON voters(poll_id);
+CREATE INDEX IF NOT EXISTS idx_members_school_year ON members(school_year);
+CREATE INDEX IF NOT EXISTS idx_polls_question ON polls(question);
+CREATE INDEX IF NOT EXISTS idx_polls_expires_at ON polls(expires_at);
 `
 
 // Global database connection pool - thread-safe singleton

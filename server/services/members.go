@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -57,7 +57,7 @@ func AdminMembersHandler(resWriter http.ResponseWriter, request *http.Request) {
 	}
 	defer file.Close()
 
-	fileBytes, err := ioutil.ReadAll(file)
+	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		common.SendError(resWriter, "Failed to read " + CVS_FILE_FIELD + " file", http.StatusInternalServerError)
 		return
