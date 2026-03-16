@@ -7,62 +7,111 @@ import (
 	"strings"
 )
 
+// Config struct with tags for proper mapping
 type Config struct {
-	DBPath        string `json:"db_path"`
-	RedisHost     string `json:"redis_host"`
-	RedisPassword string `json:"redis_password"`
+	DBPath        string `env:"db_path"`
+	RedisHost     string `env:"redis_host"`
+	RedisPassword string `env:"redis_password"`
 }
 
 var conf *Config
 var conf_path string = ".env"
 
+// Default configuration values
+var defaults = map[string]string{
+	"db_path":        "./sjles-pta-vote.db",
+	"redis_host":     "localhost:6379",
+	"redis_password": "",
+}
+
+// GetConfig returns the application configuration, loading from .env if not already loaded
 func GetConfig() *Config {
-	_ = GenerateEnvFileIfNotExists("./sjles-pta-vote.db")
+	_ = GenerateEnvFileIfNotExists(defaults["db_path"])
 
 	if conf != nil {
 		return conf
 	}
 
-	conf = &Config{}
-
-	// TODO: Make this into a ini or toml file
-	configContent, err := os.ReadFile(conf_path)
-	if err != nil {
-		log.Printf("Error reading .env file: %v", err)
-		os.Exit(1)
-	}
-
-	envVariables := strings.Split(string(configContent), "\n")
-	envMap := make(map[string]string)
-
-	// TODO: Better error checking for blank variables
-	for _, variable := range envVariables {
-		if strings.Contains(variable, "=") {
-			splitVariable := strings.Split(variable, "=")
-			envMap[splitVariable[0]] = splitVariable[1]
-		}
-	}
-
-	// TODO: Better mapping of key to json values
-	// TODO: Better error checking if values are missing
-	// TODO: Default values
-	for key, value := range envMap {
-		// Strip quotes from value if present
-		value = strings.Trim(value, "\"")
-		value = strings.TrimSpace(value)
-
-		if strings.Contains(key, "db_path") {
-			conf.DBPath = value
-		} else if strings.Contains(key, "redis_host") {
-			conf.RedisHost = value
-		} else if strings.Contains(key, "redis_password") {
-			conf.RedisPassword = value
-		} else {
-			log.Printf("Error, Unknown key value pair: %s = %s", key, value)
-		}
-	}
+	conf = loadConfig()
+	validateConfig(conf)
 
 	return conf
+}
+
+// loadConfig loads configuration from .env file with proper parsing and defaults
+func loadConfig() *Config {
+	conf := &Config{}
+	envMap := parseEnvFile(conf_path)
+
+	// Map environment variables to config struct with defaults
+	conf.DBPath = getEnvValue(envMap, "db_path", defaults["db_path"])
+	conf.RedisHost = getEnvValue(envMap, "redis_host", defaults["redis_host"])
+	conf.RedisPassword = getEnvValue(envMap, "redis_password", defaults["redis_password"])
+
+	return conf
+}
+
+// parseEnvFile reads and parses .env file with proper error handling
+func parseEnvFile(path string) map[string]string {
+	envMap := make(map[string]string)
+
+	configContent, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("WARNING: Error reading %s file: %v (using defaults)", path, err)
+		return envMap
+	}
+
+	lines := strings.Split(string(configContent), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Split by first = only
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			log.Printf("WARNING: Invalid config line (missing =): %s", line)
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// Strip quotes from value
+		value = strings.Trim(value, "\"'")
+		value = strings.TrimSpace(value)
+
+		// Validate key and value
+		if key == "" {
+			log.Printf("WARNING: Empty key in config")
+			continue
+		}
+
+		envMap[key] = value
+	}
+
+	return envMap
+}
+
+// getEnvValue retrieves a value from the env map with a default fallback
+func getEnvValue(envMap map[string]string, key, defaultValue string) string {
+	if value, exists := envMap[key]; exists && value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// validateConfig validates that required configuration values are set
+func validateConfig(conf *Config) {
+	if conf.DBPath == "" {
+		log.Fatal("ERROR: db_path is required in .env file or defaults")
+	}
+
+	log.Printf("INFO: Configuration loaded successfully")
+	log.Printf("INFO: Database path: %s", conf.DBPath)
 }
 
 func SetConfig(init_conf *Config) {
