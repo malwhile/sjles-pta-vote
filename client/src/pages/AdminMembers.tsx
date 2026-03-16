@@ -46,8 +46,15 @@ export default function AdminMembers() {
     formData.append("members.csv", file);
 
     try {
+      const token = localStorage.getItem('adminToken');
+      const headers: HeadersInit = {};
+      if (token) {
+        (headers as any)['Authorization'] = `Bearer ${token}`;
+      }
+
       const resp = await fetch("/api/admin/members", {
         method: "POST",
+        headers: headers,
         body: formData,
       });
 
@@ -58,6 +65,11 @@ export default function AdminMembers() {
         setStatusSeverity('success');
         setYear("");
         setFile(null);
+      } else if (resp.status === 401) {
+        setStatus("Your session has expired. Please log in again.");
+        setStatusSeverity('error');
+        localStorage.removeItem('adminToken');
+        setTimeout(() => navigate('/admin-login'), 2000);
       } else {
         setStatus(data.error || "Server error");
         setStatusSeverity('error');

@@ -15,6 +15,7 @@ import (
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/db"
 	"go-sjles-pta-vote/server/logging"
+	"go-sjles-pta-vote/server/middleware"
 	"go-sjles-pta-vote/server/models"
 	"go-sjles-pta-vote/server/services"
 )
@@ -33,6 +34,15 @@ func voteHandler(resWriter http.ResponseWriter, request *http.Request) {
 			common.SendError(resWriter, "Already voted", http.StatusConflict)
 			return
 		}
+		if err == services.ErrPollExpired {
+			common.SendError(resWriter, "Poll has expired", http.StatusForbidden)
+			return
+		}
+		if err == services.ErrPollNotFound {
+			common.SendError(resWriter, "Poll not found", http.StatusNotFound)
+			return
+		}
+		logging.Errorf("failed to set vote: %v", err)
 		common.SendError(resWriter, "Failed to set vote", http.StatusInternalServerError)
 		return
 	}
@@ -181,16 +191,19 @@ func main() {
 		}
 	}
 
+	// Public endpoints (no auth required)
 	http.HandleFunc("/api/vote", voteHandler)
 	http.HandleFunc("/api/polls", services.GetAllPollsHandler)           // GET - list all polls
 	http.HandleFunc("/api/polls/", pollsIDHandler)                        // GET - get poll by ID
-	http.HandleFunc("/api/admin/new-poll", services.AdminNewPollHandler)
-	http.HandleFunc("/api/admin/view-polls", services.AdminViewPollHandler)
 	http.HandleFunc("/api/admin/login", adminLoginHandler)
-	http.HandleFunc("/api/admin/logout", services.LogoutHandler)          // POST - logout
-	http.HandleFunc("/api/admin/polls/", apiPollsMethodHandler)           // PATCH/DELETE - edit/delete polls
-	http.HandleFunc("/api/admin/members", services.AdminMembersHandler)
-	http.HandleFunc("/api/admin/members/view", services.AdminMembersView)
+
+	// Admin endpoints (auth required)
+	http.Handle("/api/admin/new-poll", middleware.AuthMiddleware(http.HandlerFunc(services.AdminNewPollHandler)))
+	http.Handle("/api/admin/view-polls", middleware.AuthMiddleware(http.HandlerFunc(services.AdminViewPollHandler)))
+	http.Handle("/api/admin/logout", middleware.AuthMiddleware(http.HandlerFunc(services.LogoutHandler)))
+	http.Handle("/api/admin/polls/", middleware.AuthMiddleware(http.HandlerFunc(apiPollsMethodHandler)))
+	http.Handle("/api/admin/members", middleware.AuthMiddleware(http.HandlerFunc(services.AdminMembersHandler)))
+	http.Handle("/api/admin/members/view", middleware.AuthMiddleware(http.HandlerFunc(services.AdminMembersView)))
 
 	buildPath := filepath.Join(".", "client", "build")
 	fs := http.FileServer(http.Dir(buildPath))

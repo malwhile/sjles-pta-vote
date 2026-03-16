@@ -22,6 +22,7 @@ var (
 	ErrQuestionDoesntExist   = errors.New("Question does not exist yet")
 	ErrVoterAlreadyVoted     = errors.New("Voter already voted")
 	ErrPollNotFound          = errors.New("Poll not found")
+	ErrPollExpired           = errors.New("Poll has expired")
 	ErrFailedToUpdateVote    = errors.New("Failed to update vote")
 	ErrFailedToDeletePoll    = errors.New("Failed to delete poll")
 )
@@ -247,9 +248,26 @@ func GetAndCreatePollByQuestion(question string) (*models.Poll, error) {
 }
 
 func SetVote(vote *models.Vote) error {
+	// Check if poll has expired before accepting the vote
+	poll, err := GetPollById(vote.PollId)
+	if err == ErrPollNotFound {
+		return ErrPollNotFound
+	} else if err != nil {
+		logging.Errorf("failed to check poll expiration: %v", err)
+		return err
+	}
+
+	// Check if poll has expired
+	if poll != nil && poll.ExpiresAt != "" {
+		expiryTime, err := time.Parse(common.DATE_FORMAT, poll.ExpiresAt)
+		if err == nil && time.Now().After(expiryTime) {
+			return ErrPollExpired
+		}
+	}
+
 	db_conn, err := db.Connect()
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	}
 	defer db.Close()
@@ -260,21 +278,21 @@ func SetVote(vote *models.Vote) error {
 		VALUES ($1, $2)
 	`)
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	}
 	defer set_voter_stmt.Close()
 
 	res, err := set_voter_stmt.Exec(vote.PollId, vote.Email)
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	} else {
 		rows_changed, err := res.RowsAffected()
 		if rows_changed != 1 {
 			return ErrVoterAlreadyVoted
 		} else if err != nil {
-			log.Printf("%s", err.Error())
+			logging.Errorf("database error: %v", err)
 			return err
 		}
 	}
@@ -285,7 +303,7 @@ func SetVote(vote *models.Vote) error {
 		WHERE email == $1
 	`)
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	}
 	defer is_voter_member_stmt.Close()
@@ -296,7 +314,7 @@ func SetVote(vote *models.Vote) error {
 	if err == sql.ErrNoRows {
 		is_member = false
 	} else if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	}
 
@@ -319,21 +337,21 @@ func SetVote(vote *models.Vote) error {
 		WHERE id == $1
 	`)
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	}
 	defer add_vote_stmt.Close()
 
 	res, err = add_vote_stmt.Exec(vote.PollId)
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	}
 
 	if num, err := res.RowsAffected(); num != 1 {
 		return ErrFailedToUpdateVote
 	} else if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return err
 	}
 

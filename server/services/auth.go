@@ -1,8 +1,6 @@
 package services
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 	"os"
 	"strings"
@@ -10,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/logging"
@@ -31,19 +30,22 @@ var jwtSecret string
 func init() {
 	jwtSecret = os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "your-secret-key-change-in-production"
-		logging.Warn("JWT_SECRET not set, using default value. Change this in production!")
+		logging.Error("FATAL: JWT_SECRET environment variable not set. Set it before starting the server.")
+		os.Exit(1)
+	}
+	if len(jwtSecret) < 32 {
+		logging.Warn("JWT_SECRET is less than 32 characters. Recommended length is 32+ characters for security.")
 	}
 }
 
 // GetAdminCredentials retrieves admin credentials from environment variables
-// Format: ADMIN_USERS=username:password|username2:password2
+// Format: ADMIN_USERS=username:bcrypt_hash|username2:bcrypt_hash
+// Where bcrypt_hash is a bcrypt-hashed password created with bcrypt.GenerateFromPassword
 func getAdminCredentials() map[string]string {
 	adminUsers := os.Getenv("ADMIN_USERS")
 	if adminUsers == "" {
-		// Default admin user (change in production)
-		adminUsers = "admin:admin"
-		logging.Warn("ADMIN_USERS not set, using default admin:admin")
+		logging.Error("FATAL: ADMIN_USERS environment variable not set. Set it before starting the server.")
+		os.Exit(1)
 	}
 
 	credentials := make(map[string]string)
@@ -56,28 +58,26 @@ func getAdminCredentials() map[string]string {
 	return credentials
 }
 
-// hashPassword hashes a password using SHA256
-func hashPassword(password string) string {
-	hash := sha256.Sum256([]byte(password))
-	return hex.EncodeToString(hash[:])
-}
-
 // ValidateAdminLogin checks if the provided username and password are valid
+// Passwords are compared using bcrypt constant-time comparison
 func ValidateAdminLogin(username, password string) (bool, error) {
 	if username == "" || password == "" {
 		return false, errors.New("username and password are required")
 	}
 
 	credentials := getAdminCredentials()
-	storedPassword, exists := credentials[username]
+	storedHash, exists := credentials[username]
 
 	if !exists {
-		// Return false but not an error for security reasons (don't reveal if user exists)
+		// Always perform a bcrypt comparison to avoid timing attacks
+		// This uses a dummy hash to maintain consistent timing
+		bcrypt.CompareHashAndPassword([]byte("$2a$10$dummyhashtoavoidtimingattacks"), []byte(password))
 		return false, nil
 	}
 
-	// Compare passwords (you could enhance this with bcrypt in production)
-	if storedPassword != password {
+	// Use bcrypt for constant-time password comparison
+	err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password))
+	if err != nil {
 		return false, nil
 	}
 
@@ -127,6 +127,17 @@ func VerifyAuthToken(tokenString string) (string, error) {
 	}
 
 	return username, nil
+}
+
+// HashPassword hashes a plaintext password using bcrypt
+// Cost is set to 12 for strong security (OWASP recommended minimum)
+// This function is exported for use in setup utilities
+func HashPassword(plaintext string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), 12)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to hash password")
+	}
+	return string(hash), nil
 }
 
 // LogoutHandler handles admin logout (POST /api/admin/logout)
