@@ -1,0 +1,60 @@
+name: Create Feature Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Feature branch name (e.g., "add-feature" becomes "username/add-feature")'
+        required: true
+        type: string
+      base_branch:
+        description: 'Base branch to create from'
+        required: false
+        default: 'main'
+        type: choice
+        options:
+          - main
+          - develop
+
+jobs:
+  create-branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.base_branch }}
+          fetch-depth: 0
+
+      - name: Create and push branch
+        run: |
+          BRANCH_NAME="${{ github.actor }}/${{ github.event.inputs.branch_name }}"
+          echo "Creating branch: $BRANCH_NAME from ${{ github.event.inputs.base_branch }}"
+
+          # Create the branch from the specified base branch
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH_NAME"
+          git push -u origin "$BRANCH_NAME"
+
+          echo "✅ Branch created: $BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        id: create_branch
+
+      - name: Summary
+        run: |
+          echo "## ✅ Branch Created Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch Name:** \`${{ steps.create_branch.outputs.BRANCH_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Base Branch:** \`${{ github.event.inputs.base_branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Checkout the branch locally:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "git fetch origin" >> $GITHUB_STEP_SUMMARY
+          echo "git checkout ${{ steps.create_branch.outputs.BRANCH_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
