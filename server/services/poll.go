@@ -89,13 +89,15 @@ func CreatePoll(poll *models.Poll) (int64, error) {
 
 	var id int
 	err = get_stmt.QueryRow(poll.Question).Scan(&id)
-	if err != nil {
-		if err != sql.ErrNoRows {
-			log.Printf("%s", err.Error())
-			return -1, err
-		}
+	if err == nil {
+		// Question already exists
 		return -1, ErrQuestionAlreadyExists
+	} else if err != sql.ErrNoRows {
+		// Some other database error
+		log.Printf("%s", err.Error())
+		return -1, err
 	}
+	// Question doesn't exist, proceed to insert
 
 	stmt, err := db_conn.Prepare(`
 		INSERT INTO polls (

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -30,6 +31,10 @@ func voteHandler(resWriter http.ResponseWriter, request *http.Request) {
 	}
 
 	if err := services.SetVote(&vote); err != nil {
+		if err == services.ErrVoterAlreadyVoted {
+			common.SendError(resWriter, "Already voted", http.StatusConflict)
+			return
+		}
 		common.SendError(resWriter, "Failed to set vote", http.StatusInternalServerError)
 		return
 	}
@@ -83,8 +88,8 @@ func statsHandler(resWriter http.ResponseWriter, request *http.Request) {
 }
 
 func pollsIDHandler(resWriter http.ResponseWriter, request *http.Request) {
-	vars := mux.Vars(request)
-	idStr := vars["id"]
+	parts := strings.Split(strings.TrimPrefix(request.URL.Path, "/api/polls/"), "/")
+	idStr := parts[0]
 	log.Printf("Received request for poll ID: %s", idStr)
 	if idStr == "" {
 		common.SendError(resWriter, "Poll ID not provided", http.StatusBadRequest)
@@ -216,6 +221,7 @@ func main() {
 
 	http.HandleFunc("/api/vote", voteHandler)
 	http.HandleFunc("/api/vote/{id}", voteIDHandler)
+	http.HandleFunc("/api/polls/", pollsIDHandler)
 	http.HandleFunc("/api/stats", statsHandler)
 	http.HandleFunc("/api/admin/new-poll", services.AdminNewPollHandler)
 	http.HandleFunc("/api/admin/view-polls", services.AdminViewPollHandler)
