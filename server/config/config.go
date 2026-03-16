@@ -47,6 +47,10 @@ func GetConfig() *Config {
 	// TODO: Better error checking if values are missing
 	// TODO: Default values
 	for key, value := range envMap {
+		// Strip quotes from value if present
+		value = strings.Trim(value, "\"")
+		value = strings.TrimSpace(value)
+
 		if strings.Contains(key, "db_path") {
 			conf.DBPath = value
 		} else if strings.Contains(key, "redis_host") {
