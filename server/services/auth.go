@@ -3,7 +3,6 @@ package services
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"go-sjles-pta-vote/server/common"
+	"go-sjles-pta-vote/server/logging"
 )
 
 type LoginRequest struct {
@@ -32,7 +32,7 @@ func init() {
 	jwtSecret = os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "your-secret-key-change-in-production"
-		log.Println("WARNING: JWT_SECRET not set, using default value. Change this in production!")
+		logging.Warn("JWT_SECRET not set, using default value. Change this in production!")
 	}
 }
 
@@ -43,7 +43,7 @@ func getAdminCredentials() map[string]string {
 	if adminUsers == "" {
 		// Default admin user (change in production)
 		adminUsers = "admin:admin"
-		log.Println("WARNING: ADMIN_USERS not set, using default admin:admin")
+		logging.Warn("ADMIN_USERS not set, using default admin:admin")
 	}
 
 	credentials := make(map[string]string)
@@ -138,10 +138,12 @@ func LogoutHandler(resWriter http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	// Get the token from the Authorization header for audit logging
+	// Get the username from the token for audit logging
 	authHeader := request.Header.Get("Authorization")
 	if authHeader != "" {
-		log.Printf("INFO: User logged out successfully")
+		if username, err := VerifyAuthToken(authHeader[7:]); err == nil { // Remove "Bearer " prefix
+			logging.Audit("LOGOUT", username, "user logged out", true)
+		}
 	}
 
 	// Send success response

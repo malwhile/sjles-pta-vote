@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/db"
+	"go-sjles-pta-vote/server/logging"
 	"go-sjles-pta-vote/server/models"
 )
 
@@ -63,12 +65,25 @@ func AdminNewPollHandler(resWriter http.ResponseWriter, request *http.Request) {
 			ExpiresAt: time.Now().Add(time.Duration(durationHours) * time.Hour).Format(common.DATE_FORMAT),
 		}
 
-		if _, err := CreatePoll(&poll); err != nil {
+		pollID, err := CreatePoll(&poll)
+		if err != nil {
+			logging.Errorf("failed to create poll: %v", err)
 			common.SendError(resWriter, "Failed to create poll", http.StatusInternalServerError)
 			return
 		}
 
-		common.SendSuccess(resWriter, map[string]bool{"success": true})
+		// Extract admin user from token if available
+		authHeader := request.Header.Get("Authorization")
+		adminUser := "unknown"
+		if authHeader != "" && len(authHeader) > 7 {
+			if username, err := VerifyAuthToken(authHeader[7:]); err == nil {
+				adminUser = username
+			}
+		}
+
+		logging.Audit("CREATE_POLL", adminUser, fmt.Sprintf("poll_id=%d question=%q duration_hours=%d", pollID, req.Question, durationHours), true)
+
+		common.SendSuccess(resWriter, map[string]interface{}{"success": true, "poll_id": pollID})
 
 	default:
 		common.SendError(resWriter, "Method not allowed", http.StatusMethodNotAllowed)
@@ -78,7 +93,7 @@ func AdminNewPollHandler(resWriter http.ResponseWriter, request *http.Request) {
 func CreatePoll(poll *models.Poll) (int64, error) {
 	db_conn, err := db.Connect()
 	if err != nil {
-		log.Printf("Failed to connect to database: %s", err.Error())
+		logging.Errorf("failed to connect to database: %v", err)
 		return -1, err
 	}
 	defer db.Close()
@@ -89,7 +104,7 @@ func CreatePoll(poll *models.Poll) (int64, error) {
 			WHERE question == $1
 	`)
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return -1, err
 	}
 	defer get_stmt.Close()
@@ -117,7 +132,7 @@ func CreatePoll(poll *models.Poll) (int64, error) {
 	`)
 
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return -1, err
 	}
 
@@ -125,7 +140,7 @@ func CreatePoll(poll *models.Poll) (int64, error) {
 
 	res, err := stmt.Exec(poll.Question, poll.ExpiresAt)
 	if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("database error: %v", err)
 		return -1, err
 	}
 
@@ -224,7 +239,7 @@ func GetAndCreatePollByQuestion(question string) (*models.Poll, error) {
 
 		return GetPollByQuestion(question)
 	} else if err != nil {
-		log.Printf("%s", err.Error())
+		logging.Errorf("failed to get or create poll: %v", err)
 		return nil, err
 	} else {
 		return new_poll, err
@@ -445,7 +460,7 @@ func GetAllPollsHandler(resWriter http.ResponseWriter, request *http.Request) {
 
 	polls, err := GetAllPolls()
 	if err != nil {
-		log.Printf("ERROR: Failed to get all polls: %v", err)
+		logging.Errorf("failed to get all polls: %v", err)
 		common.SendError(resWriter, "Failed to get polls", http.StatusInternalServerError)
 		return
 	}
@@ -488,7 +503,7 @@ func EditPollHandler(resWriter http.ResponseWriter, request *http.Request) {
 
 	db_conn, err := db.GetDB()
 	if err != nil {
-		log.Printf("ERROR: Failed to get database connection: %v", err)
+		logging.Errorf("failed to get database connection: %v", err)
 		common.SendError(resWriter, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -507,10 +522,21 @@ func EditPollHandler(resWriter http.ResponseWriter, request *http.Request) {
 
 	_, err = db_conn.Exec(query, args...)
 	if err != nil {
-		log.Printf("ERROR: Failed to update poll: %v", err)
+		logging.Errorf("failed to update poll: %v", err)
 		common.SendError(resWriter, "Failed to update poll", http.StatusInternalServerError)
 		return
 	}
+
+	// Extract admin user from token if available
+	authHeader := request.Header.Get("Authorization")
+	adminUser := "unknown"
+	if authHeader != "" && len(authHeader) > 7 {
+		if username, err := VerifyAuthToken(authHeader[7:]); err == nil {
+			adminUser = username
+		}
+	}
+
+	logging.Audit("EDIT_POLL", adminUser, fmt.Sprintf("poll_id=%d question=%q", pollID, req.Question), true)
 
 	common.SendSuccess(resWriter, map[string]interface{}{"message": "Poll updated successfully"})
 }
@@ -538,7 +564,7 @@ func DeletePollHandler(resWriter http.ResponseWriter, request *http.Request) {
 
 	db_conn, err := db.GetDB()
 	if err != nil {
-		log.Printf("ERROR: Failed to get database connection: %v", err)
+		logging.Errorf("failed to get database connection: %v", err)
 		common.SendError(resWriter, "Database error", http.StatusInternalServerError)
 		return
 	}
@@ -546,7 +572,7 @@ func DeletePollHandler(resWriter http.ResponseWriter, request *http.Request) {
 	// Delete voters first (due to foreign key constraint)
 	_, err = db_conn.Exec("DELETE FROM voters WHERE poll_id = ?", pollID)
 	if err != nil {
-		log.Printf("ERROR: Failed to delete voters: %v", err)
+		logging.Errorf("failed to delete voters for poll %d: %v", pollID, err)
 		common.SendError(resWriter, "Failed to delete poll", http.StatusInternalServerError)
 		return
 	}
@@ -554,14 +580,14 @@ func DeletePollHandler(resWriter http.ResponseWriter, request *http.Request) {
 	// Delete the poll
 	result, err := db_conn.Exec("DELETE FROM polls WHERE id = ?", pollID)
 	if err != nil {
-		log.Printf("ERROR: Failed to delete poll: %v", err)
+		logging.Errorf("failed to delete poll %d: %v", pollID, err)
 		common.SendError(resWriter, "Failed to delete poll", http.StatusInternalServerError)
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		log.Printf("ERROR: Failed to get rows affected: %v", err)
+		logging.Errorf("failed to get rows affected for poll deletion %d: %v", pollID, err)
 		common.SendError(resWriter, "Failed to verify deletion", http.StatusInternalServerError)
 		return
 	}
@@ -570,6 +596,17 @@ func DeletePollHandler(resWriter http.ResponseWriter, request *http.Request) {
 		common.SendError(resWriter, "Poll not found", http.StatusNotFound)
 		return
 	}
+
+	// Extract admin user from token if available
+	authHeader := request.Header.Get("Authorization")
+	adminUser := "unknown"
+	if authHeader != "" && len(authHeader) > 7 {
+		if username, err := VerifyAuthToken(authHeader[7:]); err == nil {
+			adminUser = username
+		}
+	}
+
+	logging.Audit("DELETE_POLL", adminUser, fmt.Sprintf("poll_id=%d", pollID), true)
 
 	common.SendSuccess(resWriter, map[string]interface{}{"message": "Poll deleted successfully"})
 }

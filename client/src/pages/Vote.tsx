@@ -31,11 +31,15 @@ export default function Vote() {
   const fetchPollDetails = async (pollId: number) => {
     try {
       setLoading(true);
+      setError(null);
       const response = await axios.post(`/api/admin/view-polls`, { poll_id: pollId });
       setPoll(response.data);
-    } catch (e) {
-      console.error("Error fetching poll details:", e);
-      setError("Failed to load poll");
+    } catch (e: any) {
+      const errorMsg = e.response?.status === 404 ? "Poll not found" : "Failed to load poll";
+      setError(errorMsg);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error fetching poll details:", e);
+      }
     } finally {
       setLoading(false);
     }
@@ -61,9 +65,15 @@ export default function Vote() {
         setVoteSubmitted(true);
       }
     } catch (e: any) {
-      console.error("Error submitting vote:", e);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error submitting vote:", e);
+      }
       if (e.response?.status === 409) {
         setError("You have already voted on this poll.");
+      } else if (e.response?.status === 400) {
+        setError("Invalid vote submission. Please check your input.");
+      } else if (e.response?.status === 404) {
+        setError("Poll not found.");
       } else {
         setError("Failed to submit vote. Please try again.");
       }
