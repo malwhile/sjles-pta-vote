@@ -166,6 +166,9 @@ func TestCreatePoll(t *testing.T) {
 	defer os.Remove(tmp_db.Name())
 	tmp_db.Close()
 
+	// Reset database singleton to use new test database
+	db.ResetDB()
+
 	if _, err := db.Connect(); err != nil {
 		t.Errorf(`Failed to create the database: %v`, err)
 	}
@@ -208,6 +211,9 @@ func TestAlreadyExists(t *testing.T) {
 	defer os.Remove(tmp_db.Name())
 	tmp_db.Close()
 
+	// Reset database singleton to use new test database
+	db.ResetDB()
+
 	if _, err := db.Connect(); err != nil {
 		t.Errorf(`Failed to create the database: %v`, err)
 	}
@@ -249,6 +255,9 @@ func TestGetPollByQuestion(t *testing.T) {
 
 	defer os.Remove(tmp_db.Name())
 	tmp_db.Close()
+
+	// Reset database singleton to use new test database
+	db.ResetDB()
 
 	if _, err := db.Connect(); err != nil {
 		t.Errorf(`Failed to create the database: %v`, err)
@@ -306,6 +315,9 @@ func TestGetCreatePollByQuestion(t *testing.T) {
 	defer os.Remove(tmp_db.Name())
 	tmp_db.Close()
 
+	// Reset database singleton to use new test database
+	db.ResetDB()
+
 	if _, err := db.Connect(); err != nil {
 		t.Errorf(`Failed to create the database: %v`, err)
 	}
@@ -343,6 +355,11 @@ func TestSetVote(t *testing.T) {
 		DBPath: string(tmp_db.Name()),
 	}
 	config.SetConfig(init_conf)
+
+	tmp_db.Close()
+
+	// Reset database singleton to use new test database
+	db.ResetDB()
 
 	err = PreLoadDB()
 	if err != nil {
