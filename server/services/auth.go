@@ -1,14 +1,18 @@
 package services
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/bcrypt"
 
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/logging"
@@ -25,7 +29,11 @@ type LoginResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
-var jwtSecret string
+var (
+	jwtSecret    string
+	adminUser    string
+	adminPassEnc string // Encrypted password
+)
 
 func init() {
 	jwtSecret = os.Getenv("JWT_SECRET")
@@ -36,51 +44,124 @@ func init() {
 	if len(jwtSecret) < 32 {
 		logging.Warn("JWT_SECRET is less than 32 characters. Recommended length is 32+ characters for security.")
 	}
-}
 
-// GetAdminCredentials retrieves admin credentials from environment variables
-// Format: ADMIN_USERS=username:bcrypt_hash|username2:bcrypt_hash
-// Where bcrypt_hash is a bcrypt-hashed password created with bcrypt.GenerateFromPassword
-func getAdminCredentials() map[string]string {
-	adminUsers := os.Getenv("ADMIN_USERS")
-	if adminUsers == "" {
-		logging.Error("FATAL: ADMIN_USERS environment variable not set. Set it before starting the server.")
+	// Load admin credentials from environment
+	adminUser = os.Getenv("ADMIN_USER")
+	adminPass := os.Getenv("ADMIN_PASS")
+
+	if adminUser == "" || adminPass == "" {
+		logging.Error("FATAL: ADMIN_USER and ADMIN_PASS environment variables not set. Set them before starting the server.")
 		os.Exit(1)
 	}
 
-	credentials := make(map[string]string)
-	for _, userPass := range strings.Split(adminUsers, "|") {
-		parts := strings.Split(strings.TrimSpace(userPass), ":")
-		if len(parts) == 2 {
-			credentials[parts[0]] = parts[1]
-		}
+	// Encrypt the password using JWT_SECRET as the encryption key
+	var err error
+	adminPassEnc, err = encryptPassword(adminPass, jwtSecret)
+	if err != nil {
+		logging.Errorf("FATAL: Failed to encrypt admin password: %v", err)
+		os.Exit(1)
 	}
-	return credentials
+
+	logging.Infof("admin user configured: %s", adminUser)
+}
+
+// encryptPassword encrypts a plaintext password using AES-256-GCM with the JWT_SECRET as key
+func encryptPassword(plaintext, key string) (string, error) {
+	// Derive a 32-byte key from JWT_SECRET using SHA256
+	hash := sha256.Sum256([]byte(key))
+	encryptionKey := hash[:]
+
+	// Create cipher
+	block, err := aes.NewCipher(encryptionKey)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create cipher")
+	}
+
+	// Create GCM mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create GCM")
+	}
+
+	// Generate random nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", errors.Wrap(err, "failed to generate nonce")
+	}
+
+	// Encrypt and return as hex string (nonce + ciphertext)
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return hex.EncodeToString(ciphertext), nil
+}
+
+// decryptPassword decrypts a password encrypted with encryptPassword
+func decryptPassword(encrypted, key string) (string, error) {
+	// Derive the same 32-byte key from JWT_SECRET using SHA256
+	hash := sha256.Sum256([]byte(key))
+	decryptionKey := hash[:]
+
+	// Decode hex
+	ciphertext, err := hex.DecodeString(encrypted)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to decode encrypted password")
+	}
+
+	// Create cipher
+	block, err := aes.NewCipher(decryptionKey)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create cipher")
+	}
+
+	// Create GCM mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create GCM")
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return "", errors.New("ciphertext too short")
+	}
+
+	// Extract nonce and ciphertext
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+
+	// Decrypt
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to decrypt password")
+	}
+
+	return string(plaintext), nil
 }
 
 // ValidateAdminLogin checks if the provided username and password are valid
-// Passwords are compared using bcrypt constant-time comparison
+// Note: Password is encrypted with JWT_SECRET and compared via decryption
 func ValidateAdminLogin(username, password string) (bool, error) {
 	if username == "" || password == "" {
 		return false, errors.New("username and password are required")
 	}
 
-	credentials := getAdminCredentials()
-	storedHash, exists := credentials[username]
-
-	if !exists {
-		// Always perform a bcrypt comparison to avoid timing attacks
-		// This uses a dummy hash to maintain consistent timing
-		bcrypt.CompareHashAndPassword([]byte("$2a$10$dummyhashtoavoidtimingattacks"), []byte(password))
+	// Check if username matches
+	if username != adminUser {
+		logging.Warnf("login attempt with invalid username: %s", username)
 		return false, nil
 	}
 
-	// Use bcrypt for constant-time password comparison
-	err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password))
+	// Decrypt stored password and compare
+	decrypted, err := decryptPassword(adminPassEnc, jwtSecret)
 	if err != nil {
+		logging.Errorf("failed to decrypt admin password: %v", err)
+		return false, err
+	}
+
+	// Simple string comparison (password is only encrypted in storage)
+	if password != decrypted {
+		logging.Warnf("login attempt with invalid password for user: %s", username)
 		return false, nil
 	}
 
+	logging.Infof("successful login for admin user: %s", username)
 	return true, nil
 }
 
@@ -127,17 +208,6 @@ func VerifyAuthToken(tokenString string) (string, error) {
 	}
 
 	return username, nil
-}
-
-// HashPassword hashes a plaintext password using bcrypt
-// Cost is set to 12 for strong security (OWASP recommended minimum)
-// This function is exported for use in setup utilities
-func HashPassword(plaintext string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), 12)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to hash password")
-	}
-	return string(hash), nil
 }
 
 // LogoutHandler handles admin logout (POST /api/admin/logout)
