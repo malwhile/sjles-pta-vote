@@ -85,8 +85,7 @@ func pollsIDHandler(resWriter http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	resWriter.WriteHeader(http.StatusOK)
-	json.NewEncoder(resWriter).Encode(poll)
+	common.SendSuccess(resWriter, poll)
 }
 
 func adminLoginHandler(resWriter http.ResponseWriter, request *http.Request) {
@@ -191,10 +190,10 @@ func main() {
 		}
 	}
 
-	// Public endpoints (no auth required)
-	http.HandleFunc("/api/vote", voteHandler)
-	http.HandleFunc("/api/polls", services.GetAllPollsHandler)           // GET - list all polls
-	http.HandleFunc("/api/polls/", pollsIDHandler)                        // GET - get poll by ID
+	// Public endpoints (no auth required, but rate limited)
+	http.Handle("/api/vote", middleware.RateLimitVotes(middleware.VoteRateLimiter)(http.HandlerFunc(voteHandler)))
+	http.Handle("/api/polls", middleware.RateLimitVotes(middleware.PollViewRateLimiter)(http.HandlerFunc(services.GetAllPollsHandler)))           // GET - list all polls
+	http.Handle("/api/polls/", middleware.RateLimitVotes(middleware.PollViewRateLimiter)(http.HandlerFunc(pollsIDHandler)))                        // GET - get poll by ID
 	http.HandleFunc("/api/admin/login", adminLoginHandler)
 
 	// Admin endpoints (auth required)

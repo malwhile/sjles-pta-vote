@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, FormEvent } from "react";
+import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { useNavigate } from 'react-router';
 import {
   Card,
@@ -25,25 +25,36 @@ export default function AdminMembersView() {
   const [statusSeverity, setStatusSeverity] = useState<'success' | 'error'>('success');
   const navigate = useNavigate();
 
-  const isAdmin = () => {
-    return localStorage.getItem('adminToken') !== null;
-  };
-
-  if (!isAdmin()) {
-    navigate('/admin-login');
-    return <div>Redirecting...</div>;
-  }
+  useEffect(() => {
+    const isAdmin = localStorage.getItem('adminToken') !== null;
+    if (!isAdmin) {
+      navigate('/admin-login');
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     try {
-      const resp = await fetch(`/api/admin/members/view?year=${year}`);
+      const token = localStorage.getItem('adminToken');
+      const headers: HeadersInit = {};
+      if (token) {
+        (headers as any)['Authorization'] = `Bearer ${token}`;
+      }
+
+      const resp = await fetch(`/api/admin/members/view?year=${year}`, {
+        headers: headers,
+      });
       const data = await resp.json();
 
       if (data.success) {
-        setMembers(data.members);
+        setMembers(Array.isArray(data.data) ? data.data : []);
         setStatus("");
+      } else if (resp.status === 401) {
+        setStatus("Your session has expired. Please log in again.");
+        setStatusSeverity('error');
+        localStorage.removeItem('adminToken');
+        setTimeout(() => navigate('/admin-login'), 2000);
       } else {
         setStatus(data.error || "Server error");
         setStatusSeverity('error');

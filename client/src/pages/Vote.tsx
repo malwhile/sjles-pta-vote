@@ -34,8 +34,10 @@ export default function Vote() {
       setLoading(true);
       setError(null);
       setIsExpired(false);
-      const response = await axios.post(`/api/admin/view-polls`, { poll_id: pollId });
-      const pollData = response.data;
+      // Use public endpoint - no authentication required
+      const response = await axios.get(`/api/polls/${pollId}`);
+      // API returns {success: true, data: poll}
+      const pollData = response.data.data;
       setPoll(pollData);
 
       // Check if poll has expired

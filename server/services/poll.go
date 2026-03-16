@@ -102,7 +102,7 @@ func CreatePoll(poll *models.Poll) (int64, error) {
 	get_stmt, err := db_conn.Prepare(`
 		SELECT id 
 			FROM polls 
-			WHERE question == $1
+			WHERE question = $1
 	`)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
@@ -300,7 +300,7 @@ func SetVote(vote *models.Vote) error {
 	is_voter_member_stmt, err := db_conn.Prepare(`
 		SELECT 1
 		FROM members
-		WHERE email == $1
+		WHERE email = $1
 	`)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
@@ -334,7 +334,7 @@ func SetVote(vote *models.Vote) error {
 	add_vote_stmt, err := db_conn.Prepare(`
 		UPDATE polls
 		SET ` + member_column_name + ` = ` + member_column_name + ` + 1
-		WHERE id == $1
+		WHERE id = $1
 	`)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
@@ -372,7 +372,7 @@ func DeletePollByQuestion(question string) error {
 		WHERE poll_id IN (
 			SELECT id 
 			FROM polls 
-			WHERE question == $1
+			WHERE question = $1
 		)
 	`)
 	if err != nil {
@@ -389,7 +389,7 @@ func DeletePollByQuestion(question string) error {
 
 	delete_poll_stmt, err := db_conn.Prepare(`
 		DELETE FROM polls
-		WHERE question == $1
+		WHERE question = $1
 	`)
 	if err != nil {
 		log.Printf("%s", err.Error())

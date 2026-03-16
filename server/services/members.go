@@ -4,7 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -57,7 +57,7 @@ func AdminMembersHandler(resWriter http.ResponseWriter, request *http.Request) {
 	}
 	defer file.Close()
 
-	fileBytes, err := ioutil.ReadAll(file)
+	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		common.SendError(resWriter, "Failed to read " + CVS_FILE_FIELD + " file", http.StatusInternalServerError)
 		return
@@ -100,15 +100,17 @@ func AdminMembersView(resWriter http.ResponseWriter, request *http.Request) {
 
 	members, err := GetMembersByYear(year)
 	if err != nil {
+		logging.Errorf("failed to get members for year %d: %v", year, err)
 		common.SendError(resWriter, "Failed to get members", http.StatusInternalServerError)
 		return
 	}
 
-	resWriter.WriteHeader(http.StatusOK)
-	json.NewEncoder(resWriter).Encode(map[string]interface{}{
-		common.SUCCESS: true,
-		"members": members,
-	})
+	// Return empty array if no members found
+	if members == nil {
+		members = []Member{}
+	}
+
+	common.SendSuccess(resWriter, members)
 }
 
 func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {
@@ -172,7 +174,6 @@ func saveMember(year int, members []Member) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to database")
 	}
-	defer db_conn.Close()
 
 	tx, err := db_conn.Begin()
 	if err != nil {
@@ -228,7 +229,6 @@ func GetMembersByYear(year int) ([]Member, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to database")
 	}
-	defer db_conn.Close()
 
 	rows, err := db_conn.Query(query, year)
 	if err != nil {

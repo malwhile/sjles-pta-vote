@@ -11,10 +11,12 @@ import {
   Divider,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import { Link as RouterLink } from 'react-router';
+import { Link as RouterLink, useNavigate } from 'react-router';
+import { logout } from '../utils/auth';
 
 export default function NavBar() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const navigate = useNavigate();
 
   const handleDrawerToggle = () => {
     setDrawerOpen(!drawerOpen);
@@ -22,6 +24,15 @@ export default function NavBar() {
 
   const closeDrawer = () => {
     setDrawerOpen(false);
+  };
+
+  const isAdmin = () => {
+    return localStorage.getItem('adminToken') !== null;
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
   };
 
   const navigationItems = [
@@ -107,6 +118,21 @@ export default function NavBar() {
                 {item.label}
               </ListItemButton>
             ))}
+
+            {isAdmin() && (
+              <>
+                <Divider sx={{ my: 1 }} />
+                <ListItemButton
+                  onClick={() => {
+                    closeDrawer();
+                    handleLogout();
+                  }}
+                  sx={{ color: 'error.main' }}
+                >
+                  Logout
+                </ListItemButton>
+              </>
+            )}
           </List>
         </Box>
       </Drawer>
