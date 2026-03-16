@@ -52,10 +52,18 @@ export default function AdminCreateVote() {
         setStatus(data.error || "Server error");
         setStatusSeverity('error');
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      setStatus(`Failed to create vote: ${errorMsg}`);
+    } catch (error: any) {
+      let errorMsg = "Failed to create vote. Please try again.";
+      if (error.response?.status === 400) {
+        errorMsg = error.response?.data?.error || "Invalid vote details. Please check your input.";
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        errorMsg = "You are not authorized to create votes.";
+      }
+      setStatus(errorMsg);
       setStatusSeverity('error');
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error creating vote:", error);
+      }
     }
   };
 

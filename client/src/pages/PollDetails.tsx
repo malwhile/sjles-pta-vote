@@ -8,6 +8,7 @@ import {
   Chip,
   CircularProgress,
   Link,
+  Alert,
 } from "@mui/material";
 import { PieChart, Pie, Tooltip, Legend, Cell, ResponsiveContainer } from "recharts";
 import QRCode from "react-qr-code";
@@ -20,6 +21,7 @@ export default function PollDetails() {
   const { id } = useParams<{ id: string }>();
   const [poll, setPoll] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) fetchPollDetails(parseInt(id, 10));
@@ -28,10 +30,15 @@ export default function PollDetails() {
   const fetchPollDetails = async (pollId: number) => {
     try {
       setLoading(true);
+      setError(null);
       const response = await axios.post(`/api/admin/view-polls`, { poll_id: pollId });
       setPoll(response.data);
-    } catch (e) {
-      console.error("Error fetching poll details:", e);
+    } catch (e: any) {
+      const errorMsg = e.response?.status === 404 ? "Poll not found" : "Failed to load poll. Please try again.";
+      setError(errorMsg);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error fetching poll details:", e);
+      }
     } finally {
       setLoading(false);
     }
@@ -47,10 +54,22 @@ export default function PollDetails() {
     );
   }
 
+  if (error) {
+    return (
+      <PageLayout>
+        <Card sx={{ p: 3 }}>
+          <Alert severity="error">{error}</Alert>
+        </Card>
+      </PageLayout>
+    );
+  }
+
   if (!poll) {
     return (
       <PageLayout>
-        <Typography>Poll not found</Typography>
+        <Card sx={{ p: 3 }}>
+          <Alert severity="warning">Poll not found</Alert>
+        </Card>
       </PageLayout>
     );
   }

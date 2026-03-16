@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -15,6 +14,7 @@ import (
 
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/db"
+	"go-sjles-pta-vote/server/logging"
 	"go-sjles-pta-vote/server/models"
 	"go-sjles-pta-vote/server/services"
 )
@@ -54,30 +54,27 @@ func apiPollsMethodHandler(resWriter http.ResponseWriter, request *http.Request)
 func pollsIDHandler(resWriter http.ResponseWriter, request *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(request.URL.Path, "/api/polls/"), "/")
 	idStr := parts[0]
-	log.Printf("Received request for poll ID: %s", idStr)
 	if idStr == "" {
 		common.SendError(resWriter, "Poll ID not provided", http.StatusBadRequest)
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
-	log.Printf("Fetching poll with ID: %d", id)
 	if err != nil {
 		common.SendError(resWriter, "Invalid poll ID", http.StatusBadRequest)
 		return
 	}
 
 	poll, err := services.GetPollById(id)
-	log.Printf("Retrieved poll: %+v, error: %v", poll, err)
 	if err == services.ErrPollNotFound {
 		common.SendError(resWriter, "Poll not found", http.StatusNotFound)
 		return
 	} else if err != nil {
+		logging.Errorf("failed to get poll %d: %v", id, err)
 		common.SendError(resWriter, "Failed to get poll", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("Sending poll data: %+v", poll)
 	resWriter.WriteHeader(http.StatusOK)
 	json.NewEncoder(resWriter).Encode(poll)
 }
@@ -170,8 +167,8 @@ func initDatabase() error {
 }
 
 func main() {
-	log.SetOutput(os.Stdout)
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// Initialize structured logging
+	logging.Init()
 
 	// Check if setupdb flag is present
 	flag.BoolVar(&setupDB, "setupdb", false, "Initialize database with sample data")
@@ -179,7 +176,8 @@ func main() {
 
 	if setupDB {
 		if err := initDatabase(); err != nil {
-			log.Fatalf("Failed to initialize database: %v", err)
+			logging.Errorf("failed to initialize database: %v", err)
+			os.Exit(1)
 		}
 	}
 
@@ -205,6 +203,9 @@ func main() {
 		http.ServeFile(w, r, filepath.Join(buildPath, "index.html"))
 	}))
 
-	log.Printf("Starting server on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	logging.Info("starting server on port 8080")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		logging.Errorf("server error: %v", err)
+		os.Exit(1)
+	}
 }

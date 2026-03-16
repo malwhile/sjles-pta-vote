@@ -2,18 +2,18 @@ package services
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
-	"log"
-	"strings"
+	"io/ioutil"
 	"net/http"
 	"strconv"
-	"io/ioutil"
-	"encoding/json"
+	"strings"
 
 	"github.com/pkg/errors"
 
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/db"
+	"go-sjles-pta-vote/server/logging"
 )
 
 type Member struct {
@@ -63,13 +63,26 @@ func AdminMembersHandler(resWriter http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	if err = ParseMembersFromBytes(year, fileBytes); err != nil {
+	memberCount, err := ParseMembersFromBytes(year, fileBytes)
+	if err != nil {
+		logging.Errorf("failed to parse members from CSV: %v", err)
 		common.SendError(resWriter, "Failed to parse members from CSV", http.StatusBadRequest)
 		return
 	}
 
+	// Extract admin user from token if available
+	authHeader := request.Header.Get("Authorization")
+	adminUser := "unknown"
+	if authHeader != "" && len(authHeader) > 7 {
+		if username, err := VerifyAuthToken(authHeader[7:]); err == nil {
+			adminUser = username
+		}
+	}
+
+	logging.Audit("UPLOAD_MEMBERS", adminUser, fmt.Sprintf("year=%d count=%d", year, memberCount), true)
+
 	resWriter.WriteHeader(http.StatusOK)
-	json.NewEncoder(resWriter).Encode(map[string]bool{common.SUCCESS: true})
+	json.NewEncoder(resWriter).Encode(map[string]interface{}{common.SUCCESS: true, "count": memberCount})
 }
 
 func AdminMembersView(resWriter http.ResponseWriter, request *http.Request) {
@@ -98,12 +111,12 @@ func AdminMembersView(resWriter http.ResponseWriter, request *http.Request) {
 	})
 }
 
-func ParseMembersFromBytes(year int, fileBytes []byte) error {
+func ParseMembersFromBytes(year int, fileBytes []byte) (int, error) {
 	reader := csv.NewReader(strings.NewReader(string(fileBytes)))
 	reader.FieldsPerRecord = -1 // Allow variable number of fields per record
 	records, err := reader.ReadAll()
 	if err != nil {
-		return errors.Wrap(err, "failed to read CSV from bytes")
+		return 0, errors.Wrap(err, "failed to read CSV from bytes")
 	}
 
 	var members []Member
@@ -141,7 +154,11 @@ func ParseMembersFromBytes(year int, fileBytes []byte) error {
 		}
 	}
 
-	return saveMember(year, members)
+	err = saveMember(year, members)
+	if err != nil {
+		return 0, err
+	}
+	return len(members), nil
 }
 
 func saveMember(year int, members []Member) error {
@@ -149,7 +166,7 @@ func saveMember(year int, members []Member) error {
 		INSERT OR REPLACE INTO members (email, member_name, school_year)
 		VALUES ($1, $2, $3)
 	`
-	log.Printf("Starting to save %d members for year %d", len(members), year)
+	logging.Infof("starting to save %d members for year %d", len(members), year)
 
 	db_conn, err := db.Connect()
 	if err != nil {
