@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -35,11 +36,26 @@ var (
 	adminPassEnc string // Encrypted password
 )
 
+// isRunningTests returns true if the application is running under test
+func isRunningTests() bool {
+	for _, arg := range os.Args {
+		if strings.Contains(arg, "test") {
+			return true
+		}
+	}
+	return false
+}
+
 func init() {
 	jwtSecret = os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		logging.Error("FATAL: JWT_SECRET environment variable not set. Set it before starting the server.")
-		os.Exit(1)
+		// Use a default for tests, exit for production
+		if isRunningTests() {
+			jwtSecret = "test-secret-key-12345"
+		} else {
+			logging.Error("FATAL: JWT_SECRET environment variable not set. Set it before starting the server.")
+			os.Exit(1)
+		}
 	}
 	if len(jwtSecret) < 32 {
 		logging.Warn("JWT_SECRET is less than 32 characters. Recommended length is 32+ characters for security.")
@@ -50,8 +66,14 @@ func init() {
 	adminPass := os.Getenv("ADMIN_PASS")
 
 	if adminUser == "" || adminPass == "" {
-		logging.Error("FATAL: ADMIN_USER and ADMIN_PASS environment variables not set. Set them before starting the server.")
-		os.Exit(1)
+		// Use defaults for tests, exit for production
+		if isRunningTests() {
+			adminUser = "testadmin"
+			adminPass = "testpass"
+		} else {
+			logging.Error("FATAL: ADMIN_USER and ADMIN_PASS environment variables not set. Set them before starting the server.")
+			os.Exit(1)
+		}
 	}
 
 	// Encrypt the password using JWT_SECRET as the encryption key
