@@ -1,5 +1,6 @@
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router';
+import axios from 'axios';
 import {
   Card,
   TextField,
@@ -9,6 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 import PageLayout from "../components/PageLayout";
+import { getAuthHeaders } from '../utils/api';
 
 export default function AdminCreateVote() {
   const navigate = useNavigate();
@@ -30,33 +32,30 @@ export default function AdminCreateVote() {
     e.preventDefault();
 
     try {
-      const resp = await fetch("/api/admin/new-poll", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question,
-          duration_hours: parseInt(expiresInHours, 10),
-        }),
-      });
+      const authHeaders = getAuthHeaders();
+      const resp = await axios.post("/api/admin/new-poll", {
+        question,
+        duration_hours: parseInt(expiresInHours, 10),
+      }, authHeaders);
 
-      const data = await resp.json();
-
-      if (data.success) {
+      if (resp.data.success || resp.status === 200) {
         setStatus("Vote created successfully!");
         setStatusSeverity('success');
         setQuestion("");
         setExpiresInHours("");
       } else {
-        setStatus(data.error || "Server error");
+        setStatus(resp.data.error || "Server error");
         setStatusSeverity('error');
       }
     } catch (error: any) {
       let errorMsg = "Failed to create vote. Please try again.";
       if (error.response?.status === 400) {
         errorMsg = error.response?.data?.error || "Invalid vote details. Please check your input.";
-      } else if (error.response?.status === 401 || error.response?.status === 403) {
+      } else if (error.response?.status === 401) {
+        errorMsg = "Your session has expired. Please log in again.";
+        localStorage.removeItem('adminToken');
+        setTimeout(() => navigate('/admin-login'), 2000);
+      } else if (error.response?.status === 403) {
         errorMsg = "You are not authorized to create votes.";
       }
       setStatus(errorMsg);
