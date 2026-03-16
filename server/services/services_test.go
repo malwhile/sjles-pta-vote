@@ -432,6 +432,11 @@ func TestVoterAlreadyVoted(t *testing.T) {
 		t.Errorf("Failed to create the database: %v", err)
 	}
 
+	// Clear database to ensure fresh state
+	if err := db.ClearDatabase(); err != nil {
+		t.Errorf("Failed to clear database: %v", err)
+	}
+
 	err = PreLoadDB()
 	if err != nil {
 		t.Errorf("Failed to preload database: %v", err)
@@ -503,6 +508,11 @@ func TestDeletePollByQuestion(t *testing.T) {
 
 	if _, err := db.Connect(); err != nil {
 		t.Errorf("Failed to create the database: %v", err)
+	}
+
+	// Clear database to ensure fresh state
+	if err := db.ClearDatabase(); err != nil {
+		t.Errorf("Failed to clear database: %v", err)
 	}
 
 	err = PreLoadDB()
