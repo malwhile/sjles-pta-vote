@@ -174,7 +174,6 @@ func saveMember(year int, members []Member) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to database")
 	}
-	defer db_conn.Close()
 
 	tx, err := db_conn.Begin()
 	if err != nil {
@@ -230,7 +229,6 @@ func GetMembersByYear(year int) ([]Member, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to database")
 	}
-	defer db_conn.Close()
 
 	rows, err := db_conn.Query(query, year)
 	if err != nil {

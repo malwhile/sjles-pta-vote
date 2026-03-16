@@ -15,7 +15,6 @@ func GetVoters(pollId int64) ([]Voter, error) {
     if err != nil {
         return nil, err
     }
-    defer db.Close()
 
     rows, err := db_conn.Query(`
         SELECT v.voter_email,
