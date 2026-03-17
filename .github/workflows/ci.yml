@@ -1,8 +1,6 @@
 name: CI - Build & Test
 
 on:
-  push:
-    branches: [ main, malwhile/** ]
   pull_request:
     branches: [ main ]
 
@@ -36,7 +34,7 @@ jobs:
       working-directory: ./server
 
     - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
+      run: go test -v -race ./...
       working-directory: ./server
       env:
         JWT_SECRET: test-secret-key-for-ci
@@ -46,13 +44,6 @@ jobs:
     - name: Build binary
       run: go build -o pta-vote ./server
       working-directory: ./server
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./server/coverage.out
-        flags: backend
-        name: backend-coverage
 
   frontend-build:
     name: Frontend Build & Test
