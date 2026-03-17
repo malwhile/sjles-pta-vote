@@ -42,7 +42,7 @@ jobs:
         ADMIN_PASS: password
 
     - name: Build binary
-      run: go build -o pta-vote ./server
+      run: go build -o pta-vote
       working-directory: ./server
 
   frontend-build:
