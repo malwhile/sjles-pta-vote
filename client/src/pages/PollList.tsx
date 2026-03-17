@@ -15,7 +15,6 @@ import {
   Alert,
   Box,
   Skeleton,
-  CircularProgress,
 } from '@mui/material';
 import PageLayout from '../components/PageLayout';
 import { Poll } from '../types';

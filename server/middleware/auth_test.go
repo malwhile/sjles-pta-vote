@@ -7,18 +7,17 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
-	"go-sjles-pta-vote/server/services"
 )
 
-func init() {
-	// Set JWT_SECRET for tests if not already set
-	if os.Getenv("JWT_SECRET") == "" {
-		os.Setenv("JWT_SECRET", "test-secret-key-12345")
-	}
+func TestMain(m *testing.M) {
+	// Run tests
+	code := m.Run()
+	os.Exit(code)
 }
 
 // generateTestToken creates a valid JWT token for testing
 func generateTestToken(username string) string {
+	// Use the same secret as set in TestMain
 	secret := "test-secret-key-12345"
 	claims := jwt.MapClaims{
 		"username": username,
