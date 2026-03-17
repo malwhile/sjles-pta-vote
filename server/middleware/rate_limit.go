@@ -3,6 +3,7 @@ package middleware
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -111,10 +112,10 @@ func RateLimitVotes(limiter *RateLimiter) func(http.Handler) http.Handler {
 func getClientIP(r *http.Request) string {
 	// Check X-Forwarded-For header (for proxies)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP if multiple are present
-		ips := xff
-		if idx := len(ips) - 1; idx >= 0 {
-			return ips[:idx+1]
+		// Take the first IP if multiple are present (comma-separated chain)
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
 		}
 	}
 

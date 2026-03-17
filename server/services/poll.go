@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -248,6 +249,14 @@ func GetAndCreatePollByQuestion(question string) (*models.Poll, error) {
 }
 
 func SetVote(vote *models.Vote) error {
+	// Validate email format
+	if vote.Email == "" {
+		return errors.New("email is required")
+	}
+	if _, err := mail.ParseAddress(vote.Email); err != nil {
+		return fmt.Errorf("invalid email format: %v", err)
+	}
+
 	// Check if poll has expired before accepting the vote
 	poll, err := GetPollById(vote.PollId)
 	if err == ErrPollNotFound {
