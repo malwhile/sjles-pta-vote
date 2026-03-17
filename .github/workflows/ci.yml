@@ -92,7 +92,7 @@ jobs:
 
     - name: Start backend server
       run: |
-        go run ./server/main.go -setupdb &
+        go run main.go -setupdb &
         sleep 3
       working-directory: ./server
       env:
