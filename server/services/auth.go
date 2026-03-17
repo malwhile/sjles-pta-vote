@@ -1,12 +1,6 @@
 package services
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
-	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -14,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 
 	"go-sjles-pta-vote/server/common"
 	"go-sjles-pta-vote/server/logging"
@@ -31,9 +26,9 @@ type LoginResponse struct {
 }
 
 var (
-	jwtSecret    string
-	adminUser    string
-	adminPassEnc string // Encrypted password
+	jwtSecret      string
+	adminUser      string
+	adminPassHash  string // Bcrypt password hash
 )
 
 // isRunningTests returns true if the application is running under test
@@ -76,89 +71,33 @@ func init() {
 		}
 	}
 
-	// Encrypt the password using JWT_SECRET as the encryption key
+	// Hash the password using bcrypt
 	var err error
-	adminPassEnc, err = encryptPassword(adminPass, jwtSecret)
+	adminPassHash, err = hashPassword(adminPass)
 	if err != nil {
-		logging.Errorf("FATAL: Failed to encrypt admin password: %v", err)
+		logging.Errorf("FATAL: Failed to hash admin password: %v", err)
 		os.Exit(1)
 	}
 
 	logging.Infof("admin user configured: %s", adminUser)
 }
 
-// encryptPassword encrypts a plaintext password using AES-256-GCM with the JWT_SECRET as key
-func encryptPassword(plaintext, key string) (string, error) {
-	// Derive a 32-byte key from JWT_SECRET using SHA256
-	hash := sha256.Sum256([]byte(key))
-	encryptionKey := hash[:]
-
-	// Create cipher
-	block, err := aes.NewCipher(encryptionKey)
+// hashPassword hashes a plaintext password using bcrypt
+func hashPassword(plaintext string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), bcrypt.DefaultCost)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to create cipher")
+		return "", errors.Wrap(err, "failed to hash password")
 	}
-
-	// Create GCM mode
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to create GCM")
-	}
-
-	// Generate random nonce
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", errors.Wrap(err, "failed to generate nonce")
-	}
-
-	// Encrypt and return as hex string (nonce + ciphertext)
-	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
-	return hex.EncodeToString(ciphertext), nil
+	return string(hash), nil
 }
 
-// decryptPassword decrypts a password encrypted with encryptPassword
-func decryptPassword(encrypted, key string) (string, error) {
-	// Derive the same 32-byte key from JWT_SECRET using SHA256
-	hash := sha256.Sum256([]byte(key))
-	decryptionKey := hash[:]
-
-	// Decode hex
-	ciphertext, err := hex.DecodeString(encrypted)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to decode encrypted password")
-	}
-
-	// Create cipher
-	block, err := aes.NewCipher(decryptionKey)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to create cipher")
-	}
-
-	// Create GCM mode
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to create GCM")
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return "", errors.New("ciphertext too short")
-	}
-
-	// Extract nonce and ciphertext
-	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
-
-	// Decrypt
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to decrypt password")
-	}
-
-	return string(plaintext), nil
+// verifyPassword verifies a plaintext password against a bcrypt hash
+func verifyPassword(hash, plaintext string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plaintext))
 }
 
 // ValidateAdminLogin checks if the provided username and password are valid
-// Note: Password is encrypted with JWT_SECRET and compared via decryption
+// Passwords are hashed with bcrypt and compared in a timing-safe manner
 func ValidateAdminLogin(username, password string) (bool, error) {
 	if username == "" || password == "" {
 		return false, errors.New("username and password are required")
@@ -170,15 +109,9 @@ func ValidateAdminLogin(username, password string) (bool, error) {
 		return false, nil
 	}
 
-	// Decrypt stored password and compare
-	decrypted, err := decryptPassword(adminPassEnc, jwtSecret)
+	// Verify password against bcrypt hash
+	err := verifyPassword(adminPassHash, password)
 	if err != nil {
-		logging.Errorf("failed to decrypt admin password: %v", err)
-		return false, err
-	}
-
-	// Simple string comparison (password is only encrypted in storage)
-	if password != decrypted {
 		logging.Warnf("login attempt with invalid password for user: %s", username)
 		return false, nil
 	}

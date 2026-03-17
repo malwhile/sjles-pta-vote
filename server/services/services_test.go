@@ -12,6 +12,7 @@ import (
 )
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-=`~!@#$%^&*()_+[]\\;',./{}|:\"<>?"
+const emailCharset = "abcdefghijklmnopqrstuvwxyz1234567890"
 
 var new_members = []struct {
 	email       string
@@ -98,6 +99,15 @@ func RandString(length int) string {
 		rand_bytes[rand_index] = charset[rand.Intn(len(charset))]
 	}
 	return string(rand_bytes)
+}
+
+func RandEmail() string {
+	// Generate a valid email address for testing
+	rand_bytes := make([]byte, 10)
+	for i := range rand_bytes {
+		rand_bytes[i] = emailCharset[rand.Intn(len(emailCharset))]
+	}
+	return string(rand_bytes) + "@test.example.com"
 }
 
 func PreLoadDB() error {
@@ -366,7 +376,7 @@ func TestSetVote(t *testing.T) {
 	}
 
 	// Add a non-member vote
-	random_email := RandString(10) + "@mail.me"
+	random_email := RandEmail()
 	vote := &models.Vote{
 		PollId: 1,
 		Email:  random_email,
@@ -443,7 +453,7 @@ func TestVoterAlreadyVoted(t *testing.T) {
 	}
 
 	// Add a non-member vote
-	random_email := RandString(10) + "@mail.me"
+	random_email := RandEmail()
 	vote := &models.Vote{
 		PollId: 1,
 		Email:  random_email,
