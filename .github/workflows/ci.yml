@@ -34,33 +34,16 @@ jobs:
       working-directory: ./server
 
     - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
+      run: go test -v -race ./...
       working-directory: ./server
       env:
         JWT_SECRET: test-secret-key-for-ci
         ADMIN_USER: admin
         ADMIN_PASS: password
 
-    - name: Display coverage summary
-      run: |
-        if [ -f coverage.out ]; then
-          echo "Coverage profile generated successfully"
-          grep -E "^total:" coverage.out || echo "Coverage data available"
-        fi
-      working-directory: ./server
-      continue-on-error: true
-
     - name: Build binary
       run: go build -o pta-vote ./server
       working-directory: ./server
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./server/coverage.out
-        flags: backend
-        fail_ci_if_error: false
-      continue-on-error: true
 
   frontend-build:
     name: Frontend Build & Test
