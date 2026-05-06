@@ -305,3 +305,54 @@ func GetMembersByYear(year int) ([]Member, error) {
 
 	return members, nil
 }
+
+func GetMembershipYears() ([]int, error) {
+	query := `
+		SELECT DISTINCT school_year
+		FROM members
+		ORDER BY school_year DESC
+	`
+
+	db_conn, err := db.Connect()
+	defer db.Close()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to connect to database")
+	}
+
+	rows, err := db_conn.Query(query)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute query")
+	}
+	defer rows.Close()
+
+	var years []int
+
+	for rows.Next() {
+		var year int
+		if err := rows.Scan(&year); err != nil {
+			return nil, errors.Wrap(err, "failed to scan row")
+		}
+		years = append(years, year)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "row iteration error")
+	}
+
+	return years, nil
+}
+
+func AdminMembersYearsHandler(resWriter http.ResponseWriter, request *http.Request) {
+	years, err := GetMembershipYears()
+	if err != nil {
+		logging.Errorf("failed to get membership years: %v", err)
+		common.SendError(resWriter, "Failed to get membership years", http.StatusInternalServerError)
+		return
+	}
+
+	if years == nil {
+		years = []int{}
+	}
+
+	common.SendSuccess(resWriter, years)
+}

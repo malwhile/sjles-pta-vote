@@ -2,7 +2,8 @@ import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { useNavigate } from 'react-router';
 import {
   Card,
-  TextField,
+  Select,
+  MenuItem,
   Button,
   Alert,
   Box,
@@ -14,6 +15,8 @@ import {
   TableRow,
   TableCell,
   Paper,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 import PageLayout from "../components/PageLayout";
 import { Member } from "../types";
@@ -23,13 +26,41 @@ export default function AdminMembersView() {
   const [members, setMembers] = useState<Member[]>([]);
   const [status, setStatus] = useState<string>("");
   const [statusSeverity, setStatusSeverity] = useState<'success' | 'error'>('success');
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('adminToken') !== null;
     if (!isAdmin) {
       navigate('/admin-login');
+      return;
     }
+
+    const fetchYears = async () => {
+      try {
+        const token = localStorage.getItem('adminToken');
+        const headers: HeadersInit = {};
+        if (token) {
+          (headers as any)['Authorization'] = `Bearer ${token}`;
+        }
+
+        const resp = await fetch('/api/admin/members/years', {
+          headers: headers,
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+          setAvailableYears(Array.isArray(data.data) ? data.data : []);
+        } else if (resp.status === 401) {
+          localStorage.removeItem('adminToken');
+          navigate('/admin-login');
+        }
+      } catch (err) {
+        console.error("failed to fetch years:", err);
+      }
+    };
+
+    fetchYears();
   }, [navigate]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -74,15 +105,23 @@ export default function AdminMembersView() {
         </Typography>
 
         <Box component="form" onSubmit={handleSubmit}>
-          <TextField
-            fullWidth
-            label="Year"
-            type="number"
-            value={year}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setYear(e.target.value)}
-            margin="normal"
-            inputProps={{ min: 1900, max: 2100 }}
-          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Year</InputLabel>
+            <Select
+              value={year}
+              label="Year"
+              onChange={(e) => setYear(e.target.value)}
+            >
+              <MenuItem value="">
+                <em>Select a year</em>
+              </MenuItem>
+              {availableYears.map((y) => (
+                <MenuItem key={y} value={y.toString()}>
+                  {y}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
           {status && (
             <Alert severity={statusSeverity} sx={{ my: 2 }}>

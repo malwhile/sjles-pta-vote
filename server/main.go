@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -21,6 +22,7 @@ import (
 )
 
 var setupDB bool
+var memberYear int
 
 func voteHandler(resWriter http.ResponseWriter, request *http.Request) {
 	var vote models.Vote
@@ -119,10 +121,36 @@ func adminLoginHandler(resWriter http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func initDatabase() error {
-	// Clear existing polls first
+func loadMembersFromCSV(year int) error {
+	csvPath := filepath.Join(os.Getenv("PWD"), "example_members.csv")
+	file, err := os.Open(csvPath)
+	if err != nil {
+		return fmt.Errorf("failed to open example_members.csv: %v", err)
+	}
+	defer file.Close()
+
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		return fmt.Errorf("failed to read CSV file: %v", err)
+	}
+
+	_, err = services.ParseMembersFromBytes(year, fileBytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse members for year %d: %v", year, err)
+	}
+
+	return nil
+}
+
+func initDatabase(year int) error {
+	// Clear existing data
 	if err := db.ClearDatabase(); err != nil {
-		return fmt.Errorf("failed to clear polls: %v", err)
+		return fmt.Errorf("failed to clear database: %v", err)
+	}
+
+	// Load members from CSV
+	if err := loadMembersFromCSV(year); err != nil {
+		return fmt.Errorf("failed to load members from CSV: %v", err)
 	}
 
 	polls := []models.Poll{
@@ -181,10 +209,11 @@ func main() {
 
 	// Check if setupdb flag is present
 	flag.BoolVar(&setupDB, "setupdb", false, "Initialize database with sample data")
+	flag.IntVar(&memberYear, "year", 2023, "Year for members in example_members.csv (used with -setupdb)")
 	flag.Parse()
 
 	if setupDB {
-		if err := initDatabase(); err != nil {
+		if err := initDatabase(memberYear); err != nil {
 			logging.Errorf("failed to initialize database: %v", err)
 			os.Exit(1)
 		}
@@ -192,8 +221,8 @@ func main() {
 
 	// Public endpoints (no auth required, but rate limited)
 	http.Handle("/api/vote", middleware.RateLimitVotes(middleware.VoteRateLimiter)(http.HandlerFunc(voteHandler)))
-	http.Handle("/api/polls", middleware.RateLimitVotes(middleware.PollViewRateLimiter)(http.HandlerFunc(services.GetAllPollsHandler)))           // GET - list all polls
-	http.Handle("/api/polls/", middleware.RateLimitVotes(middleware.PollViewRateLimiter)(http.HandlerFunc(pollsIDHandler)))                        // GET - get poll by ID
+	http.Handle("/api/polls", middleware.RateLimitVotes(middleware.PollViewRateLimiter)(http.HandlerFunc(services.GetAllPollsHandler))) // GET - list all polls
+	http.Handle("/api/polls/", middleware.RateLimitVotes(middleware.PollViewRateLimiter)(http.HandlerFunc(pollsIDHandler)))             // GET - get poll by ID
 	http.HandleFunc("/api/admin/login", adminLoginHandler)
 
 	// Admin endpoints (auth required)
@@ -203,6 +232,7 @@ func main() {
 	http.Handle("/api/admin/polls/", middleware.AuthMiddleware(http.HandlerFunc(apiPollsMethodHandler)))
 	http.Handle("/api/admin/members", middleware.AuthMiddleware(http.HandlerFunc(services.AdminMembersHandler)))
 	http.Handle("/api/admin/members/view", middleware.AuthMiddleware(http.HandlerFunc(services.AdminMembersView)))
+	http.Handle("/api/admin/members/years", middleware.AuthMiddleware(http.HandlerFunc(services.AdminMembersYearsHandler)))
 
 	buildPath := filepath.Join(".", "client", "build")
 	fs := http.FileServer(http.Dir(buildPath))

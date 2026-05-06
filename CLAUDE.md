@@ -53,10 +53,11 @@ The built React app is served from the Go server at the root path, with API requ
 go run ./server/main.go
 ```
 
-**Run server with sample data** (populates 3 test polls):
+**Run server with sample data** (populates 3 test polls and members from example_members.csv):
 ```bash
-go run ./server/main.go -setupdb
+go run ./server/main.go -setupdb -year 2023
 ```
+The `-year` flag specifies the school year for the members loaded from `example_members.csv` (defaults to 2023).
 
 **Build binary**:
 ```bash
