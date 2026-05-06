@@ -45,8 +45,8 @@ describe('AdminMembersView', () => {
   test('renders without crashing when authenticated', async () => {
     localStorage.setItem('adminToken', 'test-token');
 
-    mockFetch.mockImplementation((url: string | RequestInfo) => {
-      const urlStr = typeof url === 'string' ? url : url.toString();
+    mockFetch.mockImplementation((input: string | URL | Request) => {
+      const urlStr = typeof input === 'string' ? input : input.toString();
       if (urlStr.includes('/api/admin/members/years')) {
         return Promise.resolve(
           new Response(
@@ -69,8 +69,8 @@ describe('AdminMembersView', () => {
   test('fetches years from API endpoint on mount', async () => {
     localStorage.setItem('adminToken', 'test-token');
 
-    mockFetch.mockImplementation((url: string | RequestInfo) => {
-      const urlStr = typeof url === 'string' ? url : url.toString();
+    mockFetch.mockImplementation((input: string | URL | Request) => {
+      const urlStr = typeof input === 'string' ? input : input.toString();
       if (urlStr.includes('/api/admin/members/years')) {
         return Promise.resolve(
           new Response(
@@ -97,8 +97,8 @@ describe('AdminMembersView', () => {
     const testToken = 'test-auth-token-12345';
     localStorage.setItem('adminToken', testToken);
 
-    mockFetch.mockImplementation((url: string | RequestInfo) => {
-      const urlStr = typeof url === 'string' ? url : url.toString();
+    mockFetch.mockImplementation((input: string | URL | Request) => {
+      const urlStr = typeof input === 'string' ? input : input.toString();
       if (urlStr.includes('/api/admin/members/years')) {
         return Promise.resolve(
           new Response(
@@ -129,8 +129,8 @@ describe('AdminMembersView', () => {
   test('handles empty years array from API', async () => {
     localStorage.setItem('adminToken', 'test-token');
 
-    mockFetch.mockImplementation((url: string | RequestInfo) => {
-      const urlStr = typeof url === 'string' ? url : url.toString();
+    mockFetch.mockImplementation((input: string | URL | Request) => {
+      const urlStr = typeof input === 'string' ? input : input.toString();
       if (urlStr.includes('/api/admin/members/years')) {
         return Promise.resolve(
           new Response(
@@ -152,8 +152,8 @@ describe('AdminMembersView', () => {
   test('handles API error gracefully', async () => {
     localStorage.setItem('adminToken', 'test-token');
 
-    mockFetch.mockImplementation((url: string | RequestInfo) => {
-      const urlStr = typeof url === 'string' ? url : url.toString();
+    mockFetch.mockImplementation((input: string | URL | Request) => {
+      const urlStr = typeof input === 'string' ? input : input.toString();
       if (urlStr.includes('/api/admin/members/years')) {
         return Promise.reject(new Error('Network error'));
       }
@@ -171,8 +171,8 @@ describe('AdminMembersView', () => {
   test('handles 401 unauthorized response', async () => {
     localStorage.setItem('adminToken', 'expired-token');
 
-    mockFetch.mockImplementation((url: string | RequestInfo) => {
-      const urlStr = typeof url === 'string' ? url : url.toString();
+    mockFetch.mockImplementation((input: string | URL | Request) => {
+      const urlStr = typeof input === 'string' ? input : input.toString();
       if (urlStr.includes('/api/admin/members/years')) {
         return Promise.resolve(
           new Response(
