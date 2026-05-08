@@ -382,7 +382,7 @@ func TestSetVote(t *testing.T) {
 		Email:  random_email,
 		Vote:   true,
 	}
-	err = SetVote(vote)
+	_, err = SetVote(vote)
 	if err != nil {
 		t.Errorf("Failed to set non-member vote: %v", err)
 	}
@@ -394,7 +394,7 @@ func TestSetVote(t *testing.T) {
 		Email:  member_email,
 		Vote:   true,
 	}
-	err = SetVote(vote)
+	_, err = SetVote(vote)
 	if err != nil {
 		t.Errorf("Failed to set member vote: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestVoterAlreadyVoted(t *testing.T) {
 		Email:  random_email,
 		Vote:   true,
 	}
-	err = SetVote(vote)
+	_, err = SetVote(vote)
 	if err != nil {
 		t.Errorf("Failed to set non-member vote: %v", err)
 	}
@@ -471,7 +471,7 @@ func TestVoterAlreadyVoted(t *testing.T) {
 		Email:  member_email,
 		Vote:   true,
 	}
-	err = SetVote(vote)
+	_, err = SetVote(vote)
 	if err != nil {
 		t.Errorf("Failed to set member vote: %v", err)
 	}
@@ -482,7 +482,7 @@ func TestVoterAlreadyVoted(t *testing.T) {
 		Email:  random_email,
 		Vote:   true,
 	}
-	err = SetVote(vote)
+	_, err = SetVote(vote)
 	if err != ErrVoterAlreadyVoted {
 		t.Errorf("Expected ErrVoterAlreadyVoted, but got %v", err)
 	}
@@ -493,7 +493,7 @@ func TestVoterAlreadyVoted(t *testing.T) {
 		Email:  member_email,
 		Vote:   true,
 	}
-	err = SetVote(vote)
+	_, err = SetVote(vote)
 	if err != ErrVoterAlreadyVoted {
 		t.Errorf("Expected ErrVoterAlreadyVoted, but got %v", err)
 	}

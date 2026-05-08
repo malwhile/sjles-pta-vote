@@ -18,6 +18,7 @@ export default function AdminCreateVote() {
   const [expiresInHours, setExpiresInHours] = useState<string>('');
   const [status, setStatus] = useState<string>("");
   const [statusSeverity, setStatusSeverity] = useState<'success' | 'error'>('success');
+  const [pollId, setPollId] = useState<number | null>(null);
 
   useEffect(() => {
     const isAdmin = localStorage.getItem('adminToken') !== null;
@@ -37,6 +38,8 @@ export default function AdminCreateVote() {
       }, authHeaders);
 
       if (resp.data.success || resp.status === 200) {
+        const newPollId = resp.data.poll_id;
+        setPollId(newPollId);
         setStatus("Vote created successfully!");
         setStatusSeverity('success');
         setQuestion("");
@@ -97,6 +100,28 @@ export default function AdminCreateVote() {
             <Alert severity={statusSeverity} sx={{ my: 2 }}>
               {status}
             </Alert>
+          )}
+
+          {pollId && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Voting Link:</strong>
+              </Typography>
+              <Button
+                fullWidth
+                variant="contained"
+                color="primary"
+                href={`/vote/${pollId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ mb: 1 }}
+              >
+                Open Voting Page
+              </Button>
+              <Typography variant="caption" sx={{ wordBreak: 'break-all', display: 'block', p: 1, bgcolor: 'background.paper', borderRadius: 0.5 }}>
+                {`${window.location.origin}/vote/${pollId}`}
+              </Typography>
+            </Box>
           )}
 
           <Button

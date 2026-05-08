@@ -24,6 +24,7 @@ export default function Vote() {
   const [error, setError] = useState<string | null>(null);
   const [voteSubmitted, setVoteSubmitted] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
+  const [isMember, setIsMember] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (id) fetchPollDetails(parseInt(id, 10));
@@ -75,6 +76,7 @@ export default function Vote() {
       });
 
       if (response.status === 200) {
+        setIsMember(response.data.is_member || false);
         setVoteSubmitted(true);
       }
     } catch (e: any) {
@@ -194,6 +196,32 @@ export default function Vote() {
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                 You voted: <strong>{selectedVote ? "Yes" : "No"}</strong>
               </Typography>
+            </Box>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>
+                  {isMember ? "✓ You are a PTA member" : "✕ You are not currently a PTA member"}
+                </strong>
+              </Typography>
+              {!isMember && (
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  To become a member for the current school year, visit:
+                </Typography>
+              )}
+              {!isMember && (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color="primary"
+                  href="https://sjles.givebacks.com/shop"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ mb: 2 }}
+                >
+                  Join PTA Member
+                </Button>
+              )}
             </Box>
 
             <Button

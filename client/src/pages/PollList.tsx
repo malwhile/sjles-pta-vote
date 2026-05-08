@@ -105,12 +105,14 @@ export default function PollList() {
                 <TableCell><Skeleton width="100%" /></TableCell>
                 <TableCell><Skeleton width="100%" /></TableCell>
                 <TableCell><Skeleton width="100%" /></TableCell>
+                <TableCell><Skeleton width="100%" /></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
                   <TableCell><Skeleton width="80%" /></TableCell>
+                  <TableCell><Skeleton width="70%" /></TableCell>
                   <TableCell><Skeleton width="70%" /></TableCell>
                   <TableCell align="center"><Skeleton width="60%" /></TableCell>
                 </TableRow>
@@ -146,6 +148,9 @@ export default function PollList() {
                       Created At
                     </TableSortLabel>
                   </TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    Expires At
+                  </TableCell>
                   <TableCell align="center" sx={{ fontWeight: 600 }}>
                     Result
                   </TableCell>
@@ -164,6 +169,7 @@ export default function PollList() {
                     </RouterLink>
                   </TableCell>
                   <TableCell>{new Date(poll.created_at).toLocaleString()}</TableCell>
+                  <TableCell>{new Date(poll.expires_at).toLocaleString()}</TableCell>
                   <TableCell align="center">
                     <Chip
                       label={!hasVotes ? 'No votes yet' : (passed ? 'Pass' : 'Fail')}
