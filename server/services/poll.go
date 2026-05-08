@@ -41,6 +41,10 @@ type CreatePollRequest struct {
 	DurationHours int    `json:"duration_hours,omitempty"`
 }
 
+type VoteResponse struct {
+	IsMember bool `json:"is_member"`
+}
+
 func AdminNewPollHandler(resWriter http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodPost:
@@ -248,36 +252,37 @@ func GetAndCreatePollByQuestion(question string) (*models.Poll, error) {
 	}
 }
 
-func SetVote(vote *models.Vote) error {
+func SetVote(vote *models.Vote) (VoteResponse, error) {
+	blank_vote_response := VoteResponse{}
 	// Validate email format
 	if vote.Email == "" {
-		return errors.New("email is required")
+		return blank_vote_response, errors.New("email is required")
 	}
 	if _, err := mail.ParseAddress(vote.Email); err != nil {
-		return fmt.Errorf("invalid email format: %v", err)
+		return blank_vote_response, fmt.Errorf("invalid email format: %v", err)
 	}
 
 	// Check if poll has expired before accepting the vote
 	poll, err := GetPollById(vote.PollId)
 	if err == ErrPollNotFound {
-		return ErrPollNotFound
+		return blank_vote_response, ErrPollNotFound
 	} else if err != nil {
 		logging.Errorf("failed to check poll expiration: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 
 	// Check if poll has expired
 	if poll != nil && poll.ExpiresAt != "" {
 		expiryTime, err := time.Parse(common.DATE_FORMAT, poll.ExpiresAt)
 		if err == nil && time.Now().After(expiryTime) {
-			return ErrPollExpired
+			return blank_vote_response, ErrPollExpired
 		}
 	}
 
 	db_conn, err := db.Connect()
 	if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 	defer db.Close()
 
@@ -288,21 +293,21 @@ func SetVote(vote *models.Vote) error {
 	`)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 	defer set_voter_stmt.Close()
 
 	res, err := set_voter_stmt.Exec(vote.PollId, vote.Email)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	} else {
 		rows_changed, err := res.RowsAffected()
 		if rows_changed != 1 {
-			return ErrVoterAlreadyVoted
+			return blank_vote_response, ErrVoterAlreadyVoted
 		} else if err != nil {
 			logging.Errorf("database error: %v", err)
-			return err
+			return blank_vote_response, err
 		}
 	}
 
@@ -313,7 +318,7 @@ func SetVote(vote *models.Vote) error {
 	`)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 	defer is_voter_member_stmt.Close()
 
@@ -324,7 +329,7 @@ func SetVote(vote *models.Vote) error {
 		is_member = false
 	} else if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 
 	// Member column name is not dependant on user input
@@ -347,24 +352,24 @@ func SetVote(vote *models.Vote) error {
 	`)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 	defer add_vote_stmt.Close()
 
 	res, err = add_vote_stmt.Exec(vote.PollId)
 	if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 
 	if num, err := res.RowsAffected(); num != 1 {
-		return ErrFailedToUpdateVote
+		return blank_vote_response, ErrFailedToUpdateVote
 	} else if err != nil {
 		logging.Errorf("database error: %v", err)
-		return err
+		return blank_vote_response, err
 	}
 
-	return nil
+	return VoteResponse{IsMember: is_member}, nil
 }
 
 // Delete a poll by name

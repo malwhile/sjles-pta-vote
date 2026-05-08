@@ -31,7 +31,8 @@ func voteHandler(resWriter http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	if err := services.SetVote(&vote); err != nil {
+	voteResp, err := services.SetVote(&vote)
+	if err != nil {
 		if err == services.ErrVoterAlreadyVoted {
 			common.SendError(resWriter, "Already voted", http.StatusConflict)
 			return
@@ -49,7 +50,9 @@ func voteHandler(resWriter http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	resWriter.Header().Set("Content-Type", "application/json")
 	resWriter.WriteHeader(http.StatusOK)
+	json.NewEncoder(resWriter).Encode(voteResp)
 }
 
 func apiPollsMethodHandler(resWriter http.ResponseWriter, request *http.Request) {
